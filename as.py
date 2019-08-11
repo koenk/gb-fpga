@@ -25,6 +25,8 @@ opcodes = {
     'inc16': 0x10,
     'dec16': 0x11,
     'add16': 0x12,
+    'jp': 0x13,
+    'jpcc': 0x14,
 }
 
 arg_reg8_shift = 5
@@ -78,9 +80,12 @@ class Instruction:
             if len(args) == 2:
                 opcode = opcodes[f'{op}cc']
                 opcode |= arg_cond[args[0]] << arg_cond_shift
-                argbytes.append(parseint(args[1]))
+                addr = parseint(args[1])
             else:
-                argbytes.append(parseint(args[0]))
+                addr = parseint(args[0])
+            argbytes.append(addr & 0xff)
+            if op == 'jp':
+                argbytes.append((addr >> 8) & 0xff)
         elif op in ('inc', 'dec', 'add', 'sub', 'or', 'and', 'xor'):
             assert(len(args) == 1)
             if args[0] in arg_reg16:
@@ -101,7 +106,6 @@ class Instruction:
             addr = parseint(args[0])
             argbytes.append(addr & 0xff)
             argbytes.append((addr >> 8) & 0xff)
-
         self.bytes = [opcode] + argbytes
 
     def __repr__(self):
