@@ -3,9 +3,9 @@ module cpu (
     input reset,
 
     output reg [15:0] mem_addr,
-    output [7:0] mem_data_write,
+    output reg [7:0] mem_data_write,
     input [7:0] mem_data_read,
-    output mem_do_write,
+    output reg mem_do_write,
 
     output cpu_is_halted,
 
@@ -45,7 +45,15 @@ localparam RESET       = 0,
            LOAD_MEM7   = 18,
            LOAD_MEM8   = 19,
            EXECUTE     = 20,
-           WRITEBACK   = 21;
+           STORE_MEM1  = 21,
+           STORE_MEM2  = 22,
+           STORE_MEM3  = 23,
+           STORE_MEM4  = 24,
+           STORE_MEM5  = 25,
+           STORE_MEM6  = 26,
+           STORE_MEM7  = 27,
+           STORE_MEM8  = 28,
+           WRITEBACK   = 29;
 
 // TODO temporary instructions
 localparam OP_NOP   = 5'h00,
@@ -136,7 +144,7 @@ reg decode_instruction_not_implemented;
 reg decode_16bit;
 reg [2:0] decode_alu_op;
 reg [4:0] decode_oper1, decode_oper2;
-reg [15:0] decode_oper1_val, decode_oper2_val;
+reg [15:0] decode_oper1_constval, decode_oper2_constval;
 reg [1:0] decode_instr_length;
 reg [4:0] decode_dest;
 reg [7:0] decode_opcode;
@@ -145,10 +153,18 @@ reg [1:0] decode_HL_op;
 reg [4:0] op_reg8, op_reg16;
 reg op_cond;
 reg decode_load_mem8, decode_load_mem16;
+reg decode_store_mem8, decode_store_mem16;
+reg [4:0] decode_store_addr_oper, decode_store_data_oper;
+reg [15:0] decode_store_addr_constval, decode_store_data_constval;
 
 reg decode_has_mem_operand, decode_has_mem16_operand;
+reg decode_mem_operand_is_store_addr;
+
 reg load_mem, load_mem16;
 reg [15:0] load_mem_addr;
+
+reg store_mem, store_mem16;
+reg [15:0] store_mem_addr, store_mem_data;
 
 reg alu_16bit;
 reg [2:0] alu_op;
@@ -162,14 +178,10 @@ reg [15:0] wb_pc;
 reg [3:0] wb_flags, wb_flags_mask;
 reg [1:0] wb_HL_op;
 
-localparam MEMBUS_PC=0, MEMBUS_OPER=1, MEMBUS_LOAD=2;
+localparam MEMBUS_FETCH=0, MEMBUS_OPER=1, MEMBUS_LOAD=2, MEMBUS_STORE=3;
 /* verilator lint_off UNUSED */
 reg[1:0] mem_bus_ctrl;
 /* verilator lint_on UNUSED */
-
-// TEMP
-assign mem_data_write = 0;
-assign mem_do_write = 0;
 
 assign cpu_is_halted = halted;
 
@@ -220,7 +232,15 @@ always @(*)
             LOAD_MEM6:   next_stage = LOAD_MEM7;
             LOAD_MEM7:   next_stage = LOAD_MEM8;
             LOAD_MEM8:   next_stage = EXECUTE;
-            EXECUTE:     next_stage = WRITEBACK;
+            EXECUTE:     next_stage = store_mem ? STORE_MEM1 : WRITEBACK;
+            STORE_MEM1:  next_stage = STORE_MEM2;
+            STORE_MEM2:  next_stage = STORE_MEM3;
+            STORE_MEM3:  next_stage = STORE_MEM4;
+            STORE_MEM4:  next_stage = store_mem16 ? STORE_MEM5 : WRITEBACK;
+            STORE_MEM5:  next_stage = STORE_MEM6;
+            STORE_MEM6:  next_stage = STORE_MEM7;
+            STORE_MEM7:  next_stage = STORE_MEM8;
+            STORE_MEM8:  next_stage = WRITEBACK;
             WRITEBACK:   next_stage = halted ? HALTED : FETCH;
             // TODO add 4 cycles for jumps (except LD PC, HL)
             default:     next_stage = HALTED;
@@ -233,8 +253,8 @@ always @(*) begin
     decode_alu_op = ALU_NOP;
     decode_oper1 = DE_REG_A;
     decode_oper2 = DE_NONE;
-    decode_oper1_val = 'hffff;
-    decode_oper2_val = 16'h0001;
+    decode_oper1_constval = 'hffff;
+    decode_oper2_constval = 16'h0001;
     decode_dest = DE_NONE;
     decode_halt = 0;
     decode_instruction_not_implemented = 0;
@@ -243,6 +263,12 @@ always @(*) begin
     decode_HL_op = HL_OP_NONE;
     decode_load_mem8 = 0;
     decode_load_mem16 = 0;
+    decode_store_mem8 = 0;
+    decode_store_mem16 = 0;
+    decode_store_addr_oper = DE_CONST;
+    decode_store_data_oper = DE_CONST;
+    decode_store_addr_constval = 16'hffff;
+    decode_store_data_constval = 16'hffff;
 
     decode_opcode = mem_data_read;
 
@@ -256,7 +282,7 @@ always @(*) begin
         OP_MOV:  begin decode_dest = op_reg8; end
         OP_LDI:  begin decode_dest = op_reg8; decode_oper1 = DE_MEM; end
         OP_LD:   begin decode_dest = op_reg8; decode_oper1 = DE_MEM16; decode_load_mem8 = 1; end
-        //OP_ST:
+        OP_ST:   begin decode_store_mem8 = 1; decode_store_addr_oper = DE_MEM16; decode_store_data_oper = op_reg8; end
         OP_ADD:  begin decode_alu_op = ALU_ADD; decode_oper2 = op_reg8; decode_dest = DE_REG_A; decode_flags_mask = 4'hf; end
         OP_SUB:  begin decode_alu_op = ALU_SUB; decode_oper2 = op_reg8; decode_dest = DE_REG_A; decode_flags_mask = 4'hf; end
         OP_OR:   begin decode_alu_op = ALU_OR;  decode_oper2 = op_reg8; decode_dest = DE_REG_A; end
@@ -276,8 +302,11 @@ always @(*) begin
         OP_LDHLI: begin decode_dest = op_reg8; decode_oper1 = DE_REG_HL; decode_load_mem8 = 1; decode_HL_op = HL_OP_INC; end
         default: decode_instruction_not_implemented = 1;
     endcase
-    decode_instr_length = decode_oper1 == DE_MEM16 ? 3 : (
-                          decode_oper1 == DE_MEM ? 2 : 1);
+    decode_instr_length = (decode_oper1 == DE_MEM16 ||
+                           decode_store_addr_oper == DE_MEM16) ? 3 : (
+                          (decode_oper1 == DE_MEM ||
+                           decode_store_addr_oper == DE_MEM) ? 2 :
+                                                             1);
 end
 
 function [4:0] decode_operand_reg8(input [2:0] operand_bits);
@@ -383,12 +412,13 @@ always @(posedge clk)
         reg_H <= 8'h00;
         reg_L <= 8'h00;
         {Z, N, H, C} <= 4'h0;
+        mem_do_write <= 0;
     end else begin
         //$display("[CPU] Begin stage ", next_stage);
         case (next_stage)
         FETCH: begin
             $display("[CPU] Fetch ", pc);
-            mem_bus_ctrl <= MEMBUS_PC;
+            mem_bus_ctrl <= MEMBUS_FETCH;
             mem_addr <= pc;
         end
 
@@ -407,14 +437,25 @@ always @(posedge clk)
 
             alu_op <= decode_alu_op;
             alu_16bit <= decode_16bit;
-            exec_oper1 <= operand_mux(decode_oper1, decode_oper1_val);
-            exec_oper2 <= operand_mux(decode_oper2, decode_oper2_val);
+            exec_oper1 <= operand_mux(decode_oper1, decode_oper1_constval);
+            exec_oper2 <= operand_mux(decode_oper2, decode_oper2_constval);
+            store_mem_addr <= operand_mux(decode_store_addr_oper, decode_store_addr_constval);
+            store_mem_data <= operand_mux(decode_store_data_oper, decode_store_data_constval);
 
             decode_has_mem_operand <= decode_oper1 == DE_MEM ||
-                                      decode_oper1 == DE_MEM16;
-            decode_has_mem16_operand <= decode_oper1 == DE_MEM16;
+                                      decode_oper1 == DE_MEM16 ||
+                                      decode_store_addr_oper == DE_MEM ||
+                                      decode_store_addr_oper == DE_MEM16;
+            decode_has_mem16_operand <= decode_oper1 == DE_MEM16 ||
+                                        decode_store_addr_oper == DE_MEM16;
+            decode_mem_operand_is_store_addr <= decode_store_addr_oper == DE_MEM ||
+                                                decode_store_addr_oper == DE_MEM16;
+
             load_mem <= decode_load_mem8 || decode_load_mem16;
             load_mem16 <= decode_load_mem16;
+
+            store_mem <= decode_store_mem8 || decode_store_mem16;
+            store_mem16 <= decode_store_mem16;
 
             wb_dest <= decode_dest;
             wb_pc <= pc + {14'b0, decode_instr_length};
@@ -429,7 +470,10 @@ always @(posedge clk)
         end
         DECODE_MEM2: begin
             $display("[CPU] Decode read operand ", mem_data_read);
-            exec_oper1 <= sext(mem_data_read);
+            if (decode_mem_operand_is_store_addr)
+                store_mem_addr[7:0] <= mem_data_read;
+            else
+                exec_oper1 <= sext(mem_data_read);
         end
         DECODE_MEM5: begin
             $display("[CPU] Decode reading operand from ", pc + 2);
@@ -438,7 +482,10 @@ always @(posedge clk)
         end
         DECODE_MEM6: begin
             $display("[CPU] Decode read operand ", mem_data_read);
-            exec_oper1[15:8] <= mem_data_read;
+            if (decode_mem_operand_is_store_addr)
+                store_mem_addr[15:8] <= mem_data_read;
+            else
+                exec_oper1[15:8] <= mem_data_read;
         end
 
         LOAD_MEM1: begin
@@ -465,6 +512,27 @@ always @(posedge clk)
             wb_data <= alu_out[15:0];
             wb_flags <= {alu_out_Z, alu_out_N, alu_out_H, alu_out_C};
             $display("[CPU] Execute ALU op ", alu_op, " in1: ", exec_oper1, " in2: ", exec_oper2, " out: ", alu_out[15:0], " F ", alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
+        end
+
+        STORE_MEM1: begin
+            $display("[CPU] Store %02x to %04x", store_mem_data[7:0], store_mem_addr);
+            mem_bus_ctrl <= MEMBUS_STORE;
+            mem_addr <= store_mem_addr;
+            mem_data_write <= store_mem_data[7:0];
+            mem_do_write <= 1;
+        end
+        STORE_MEM2: begin
+            mem_do_write <= 0;
+        end
+        STORE_MEM5: begin
+            $display("[CPU] Store %02x to %04x", store_mem_data[15:8], store_mem_addr + 1);
+            mem_bus_ctrl <= MEMBUS_STORE;
+            mem_addr <= store_mem_addr + 1;
+            mem_data_write <= store_mem_data[15:8];
+            mem_do_write <= 1;
+        end
+        STORE_MEM6: begin
+            mem_do_write <= 0;
         end
 
         WRITEBACK: begin

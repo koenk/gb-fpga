@@ -59,6 +59,8 @@ arg_cond = {
 }
 
 def parseint(val, width=8):
+    if val.startswith('(') and val.endswith(')'):
+        val = val[1:-1]
     val = int(val, 0)
     if val < 0: val = (1 << width) + val
     return val

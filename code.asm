@@ -21,4 +21,9 @@ ldi hl, 0x0003
 ldhli a, (hl+)
 ldhli b, (hl+)
 ldhli c, (hl+)
-hlt
+#hlt
+xor A # 0x00=nop
+st (0x0001), A
+inc A # 0x01=hlt
+st (0x0002), A
+jp 0x0001
