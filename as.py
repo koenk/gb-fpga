@@ -27,6 +27,9 @@ opcodes = {
     'add16': 0x12,
     'jp': 0x13,
     'jpcc': 0x14,
+    'ldi16': 0x15,
+    'ld16': 0x16,
+    'ldhli': 0x17,
 }
 
 arg_reg8_shift = 5
@@ -96,16 +99,40 @@ class Instruction:
                 opcode |= arg_reg8[args[0]] << arg_reg8_shift
         elif op == 'ldi':
             assert(len(args) == 2)
-            opcode |= arg_reg8[args[0]] << arg_reg8_shift
-            argbytes.append(parseint(args[1]))
+            if args[0] in arg_reg16:
+                assert(args[0] != 'af')
+                opcode = opcodes[f'{op}16']
+                opcode |= arg_reg16[args[0]] << arg_reg16_shift
+                val = parseint(args[1])
+                argbytes.append(val & 0xff)
+                argbytes.append((val >> 8) & 0xff)
+            else:
+                opcode |= arg_reg8[args[0]] << arg_reg8_shift
+                argbytes.append(parseint(args[1]))
         elif op == 'mov':
             assert(len(args) == 1)
             opcode |= arg_reg8[args[0]] << arg_reg8_shift
         elif op in ('ld', 'st'):
-            assert(len(args) == 1)
-            addr = parseint(args[0])
+            assert(len(args) == 2)
+            if op == 'ld':
+                addr = parseint(args[1])
+                reg = args[0]
+            else:
+                addr = parseint(args[0])
+                reg = args[1]
+            if reg in arg_reg16:
+                assert(reg != 'af')
+                opcode = opcodes[f'{op}16']
+                opcode |= arg_reg16[reg] << arg_reg16_shift
+            else:
+                opcode |= arg_reg8[reg] << arg_reg8_shift
             argbytes.append(addr & 0xff)
             argbytes.append((addr >> 8) & 0xff)
+        elif op == 'ldhli':
+            assert(len(args) == 2)
+            assert(args[1] == '(hl+)')
+            opcode |= arg_reg8[args[0]] << arg_reg8_shift
+
         self.bytes = [opcode] + argbytes
 
     def __repr__(self):

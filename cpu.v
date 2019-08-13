@@ -36,8 +36,16 @@ localparam RESET       = 0,
            DECODE_MEM6 = 9,
            DECODE_MEM7 = 10,
            DECODE_MEM8 = 11,
-           EXECUTE     = 12,
-           WRITEBACK   = 13;
+           LOAD_MEM1   = 12,
+           LOAD_MEM2   = 13,
+           LOAD_MEM3   = 14,
+           LOAD_MEM4   = 15,
+           LOAD_MEM5   = 16,
+           LOAD_MEM6   = 17,
+           LOAD_MEM7   = 18,
+           LOAD_MEM8   = 19,
+           EXECUTE     = 20,
+           WRITEBACK   = 21;
 
 // TODO temporary instructions
 localparam OP_NOP   = 5'h00,
@@ -59,7 +67,10 @@ localparam OP_NOP   = 5'h00,
            OP_DEC16 = 5'h11,
            OP_ADD16 = 5'h12,
            OP_JP    = 5'h13,
-           OP_JPCC  = 5'h14;
+           OP_JPCC  = 5'h14,
+           OP_LDI16 = 5'h15,
+           OP_LD16  = 5'h16,
+           OP_LDHLI = 5'h17;
 
 localparam OPARG_REG_A = 0,
            OPARG_REG_B = 1,
@@ -111,7 +122,7 @@ localparam HL_OP_NONE = 0,
            HL_OP_INC  = 1,
            HL_OP_DEC  = 2;
 
-reg [3:0] stage, next_stage;
+reg [4:0] stage, next_stage;
 
 reg halted;
 reg [15:0] pc, sp;
@@ -132,14 +143,16 @@ reg [7:0] decode_opcode;
 reg [3:0] decode_flags_mask;
 reg [1:0] decode_HL_op;
 reg [4:0] op_reg8, op_reg16;
-wire op_cond;
+reg op_cond;
+reg decode_load_mem8, decode_load_mem16;
 
 reg decode_has_mem_operand, decode_has_mem16_operand;
-reg [15:0] decode_mem_operand_addr;
+reg load_mem, load_mem16;
+reg [15:0] load_mem_addr;
 
 reg alu_16bit;
 reg [2:0] alu_op;
-reg [15:0] alu_in1, alu_in2;
+reg [15:0] exec_oper1, exec_oper2;
 reg [16:0] alu_out; // 16 bit + 1 bit for capturing carry
 wire alu_out_Z, alu_out_N, alu_out_H, alu_out_C;
 
@@ -149,9 +162,9 @@ reg [15:0] wb_pc;
 reg [3:0] wb_flags, wb_flags_mask;
 reg [1:0] wb_HL_op;
 
-localparam MEMBUS_PC=0, MEMBUS_OPER=1;
+localparam MEMBUS_PC=0, MEMBUS_OPER=1, MEMBUS_LOAD=2;
 /* verilator lint_off UNUSED */
-reg mem_bus_ctrl;
+reg[1:0] mem_bus_ctrl;
 /* verilator lint_on UNUSED */
 
 // TEMP
@@ -188,15 +201,25 @@ always @(*)
             RESET:       next_stage = FETCH;
             HALTED:      next_stage = halted ? HALTED : FETCH;
             FETCH:       next_stage = DECODE;
-            DECODE:      next_stage = decode_has_mem_operand ? DECODE_MEM1 : EXECUTE;
+            DECODE:      next_stage = decode_has_mem_operand ? DECODE_MEM1 :
+                                      (load_mem ? LOAD_MEM1 : EXECUTE);
             DECODE_MEM1: next_stage = DECODE_MEM2;
             DECODE_MEM2: next_stage = DECODE_MEM3;
             DECODE_MEM3: next_stage = DECODE_MEM4;
-            DECODE_MEM4: next_stage = decode_has_mem16_operand ? DECODE_MEM5 : EXECUTE;
+            DECODE_MEM4: next_stage = decode_has_mem16_operand ? DECODE_MEM5 :
+                                      (load_mem ? LOAD_MEM1 : EXECUTE);
             DECODE_MEM5: next_stage = DECODE_MEM6;
             DECODE_MEM6: next_stage = DECODE_MEM7;
             DECODE_MEM7: next_stage = DECODE_MEM8;
-            DECODE_MEM8: next_stage = EXECUTE;
+            DECODE_MEM8: next_stage = load_mem ? LOAD_MEM1 : EXECUTE;
+            LOAD_MEM1:   next_stage = LOAD_MEM2;
+            LOAD_MEM2:   next_stage = LOAD_MEM3;
+            LOAD_MEM3:   next_stage = LOAD_MEM4;
+            LOAD_MEM4:   next_stage = load_mem16 ? LOAD_MEM5 : EXECUTE;
+            LOAD_MEM5:   next_stage = LOAD_MEM6;
+            LOAD_MEM6:   next_stage = LOAD_MEM7;
+            LOAD_MEM7:   next_stage = LOAD_MEM8;
+            LOAD_MEM8:   next_stage = EXECUTE;
             EXECUTE:     next_stage = WRITEBACK;
             WRITEBACK:   next_stage = halted ? HALTED : FETCH;
             // TODO add 4 cycles for jumps (except LD PC, HL)
@@ -218,6 +241,8 @@ always @(*) begin
     decode_flags_mask = 4'h0;
     decode_16bit = 0;
     decode_HL_op = HL_OP_NONE;
+    decode_load_mem8 = 0;
+    decode_load_mem16 = 0;
 
     decode_opcode = mem_data_read;
 
@@ -230,7 +255,7 @@ always @(*) begin
         OP_HLT:  decode_halt = 1;
         OP_MOV:  begin decode_dest = op_reg8; end
         OP_LDI:  begin decode_dest = op_reg8; decode_oper1 = DE_MEM; end
-        //OP_LD:
+        OP_LD:   begin decode_dest = op_reg8; decode_oper1 = DE_MEM16; decode_load_mem8 = 1; end
         //OP_ST:
         OP_ADD:  begin decode_alu_op = ALU_ADD; decode_oper2 = op_reg8; decode_dest = DE_REG_A; decode_flags_mask = 4'hf; end
         OP_SUB:  begin decode_alu_op = ALU_SUB; decode_oper2 = op_reg8; decode_dest = DE_REG_A; decode_flags_mask = 4'hf; end
@@ -246,6 +271,9 @@ always @(*) begin
         OP_ADD16: begin decode_alu_op = ALU_ADD; decode_oper1 = op_reg16; decode_oper2 = DE_CONST; decode_dest = op_reg16; end
         OP_JP:    begin decode_oper1 = DE_MEM16; decode_dest = DE_PC; end
         OP_JPCC:  begin decode_oper1 = DE_MEM16; decode_dest = op_cond ? DE_PC : DE_NONE; end
+        OP_LDI16: begin decode_dest = op_reg16; decode_oper1 = DE_MEM16; end
+        OP_LD16:  begin decode_dest = op_reg16; decode_oper1 = DE_MEM16; decode_load_mem16 = 1; end
+        OP_LDHLI: begin decode_dest = op_reg8; decode_oper1 = DE_REG_HL; decode_load_mem8 = 1; decode_HL_op = HL_OP_INC; end
         default: decode_instruction_not_implemented = 1;
     endcase
     decode_instr_length = decode_oper1 == DE_MEM16 ? 3 : (
@@ -321,20 +349,20 @@ endfunction
  */
 always @(*)
     case (alu_op)
-        ALU_NOP: begin alu_out = {1'b0, alu_in1}; end
-        ALU_ADD: begin alu_out = {1'b0, alu_in1} + {1'b0, alu_in2}; end
-        ALU_SUB: begin alu_out = {1'b0, alu_in1} - {1'b0, alu_in2}; end
-        ALU_OR:  begin alu_out = {1'b0, alu_in1} | {1'b0, alu_in2}; end
-        ALU_AND: begin alu_out = {1'b0, alu_in1} & {1'b0, alu_in2}; end
-        ALU_XOR: begin alu_out = {1'b0, alu_in1} ^ {1'b0, alu_in2}; end
+        ALU_NOP: begin alu_out = {1'b0, exec_oper1}; end
+        ALU_ADD: begin alu_out = {1'b0, exec_oper1} + {1'b0, exec_oper2}; end
+        ALU_SUB: begin alu_out = {1'b0, exec_oper1} - {1'b0, exec_oper2}; end
+        ALU_OR:  begin alu_out = {1'b0, exec_oper1} | {1'b0, exec_oper2}; end
+        ALU_AND: begin alu_out = {1'b0, exec_oper1} & {1'b0, exec_oper2}; end
+        ALU_XOR: begin alu_out = {1'b0, exec_oper1} ^ {1'b0, exec_oper2}; end
         default: alu_out = 17'hFFFF;
     endcase
 assign alu_out_Z = alu_16bit ? (alu_out[15:0] == 16'h0000) :
                                (alu_out[7:0] == 8'h00);
 assign alu_out_N = alu_op == ALU_SUB;
-assign alu_out_H = alu_in1[4] ^ alu_in2[4] ^ alu_out[4]; // TODO for 16-bit
+assign alu_out_H = exec_oper1[4] ^ exec_oper2[4] ^ alu_out[4]; // TODO for 16-bit
 assign alu_out_C = alu_16bit ? alu_out[16] :
-                               (alu_in1[8] ^ alu_in2[8] ^ alu_out[8]);
+                               (exec_oper1[8] ^ exec_oper2[8] ^ alu_out[8]);
 
 
 /*
@@ -379,18 +407,14 @@ always @(posedge clk)
 
             alu_op <= decode_alu_op;
             alu_16bit <= decode_16bit;
-            alu_in1 <= operand_mux(decode_oper1, decode_oper1_val);
-            alu_in2 <= operand_mux(decode_oper2, decode_oper2_val);
+            exec_oper1 <= operand_mux(decode_oper1, decode_oper1_val);
+            exec_oper2 <= operand_mux(decode_oper2, decode_oper2_val);
 
-            if (decode_oper1 == DE_MEM) begin
-                decode_has_mem_operand <= 1;
-                decode_mem_operand_addr <= pc + 1; // TODO
-            end
-            if (decode_oper1 == DE_MEM16) begin
-                decode_has_mem_operand <= 1;
-                decode_has_mem16_operand <= 1;
-                decode_mem_operand_addr <= pc + 1; // TODO
-            end
+            decode_has_mem_operand <= decode_oper1 == DE_MEM ||
+                                      decode_oper1 == DE_MEM16;
+            decode_has_mem16_operand <= decode_oper1 == DE_MEM16;
+            load_mem <= decode_load_mem8 || decode_load_mem16;
+            load_mem16 <= decode_load_mem16;
 
             wb_dest <= decode_dest;
             wb_pc <= pc + {14'b0, decode_instr_length};
@@ -399,30 +423,48 @@ always @(posedge clk)
         end
 
         DECODE_MEM1: begin
-            $display("[CPU] Decode reading operand from ", decode_mem_operand_addr);
+            $display("[CPU] Decode reading operand from ", pc + 1);
             mem_bus_ctrl <= MEMBUS_OPER;
-            mem_addr <= decode_mem_operand_addr;
-            decode_has_mem_operand <= 0;
+            mem_addr <= pc + 1;
         end
         DECODE_MEM2: begin
             $display("[CPU] Decode read operand ", mem_data_read);
-            alu_in1 <= sext(mem_data_read);
+            exec_oper1 <= sext(mem_data_read);
         end
         DECODE_MEM5: begin
-            $display("[CPU] Decode reading operand from ", decode_mem_operand_addr + 1);
+            $display("[CPU] Decode reading operand from ", pc + 2);
             mem_bus_ctrl <= MEMBUS_OPER;
-            mem_addr <= decode_mem_operand_addr + 1;
-            decode_has_mem16_operand <= 0;
+            mem_addr <= pc + 2;
         end
         DECODE_MEM6: begin
             $display("[CPU] Decode read operand ", mem_data_read);
-            alu_in1[15:8] <= mem_data_read;
+            exec_oper1[15:8] <= mem_data_read;
+        end
+
+        LOAD_MEM1: begin
+            $display("[CPU] Load from ", exec_oper1);
+            load_mem_addr <= exec_oper1;
+            mem_bus_ctrl <= MEMBUS_LOAD;
+            mem_addr <= exec_oper1;
+        end
+        LOAD_MEM2: begin
+            $display("[CPU] Load result ", mem_data_read);
+            exec_oper1 <= sext(mem_data_read);
+        end
+        LOAD_MEM5: begin
+            $display("[CPU] Load from ", load_mem_addr + 1);
+            mem_bus_ctrl <= MEMBUS_LOAD;
+            mem_addr <= load_mem_addr + 1;
+        end
+        LOAD_MEM6: begin
+            $display("[CPU] Load result ", mem_data_read);
+            exec_oper1[15:8] <= mem_data_read;
         end
 
         EXECUTE: begin
             wb_data <= alu_out[15:0];
             wb_flags <= {alu_out_Z, alu_out_N, alu_out_H, alu_out_C};
-            $display("[CPU] Execute ALU op ", alu_op, " in1: ", alu_in1, " in2: ", alu_in2, " out: ", alu_out[15:0], " F ", alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
+            $display("[CPU] Execute ALU op ", alu_op, " in1: ", exec_oper1, " in2: ", exec_oper2, " out: ", alu_out[15:0], " F ", alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
         end
 
         WRITEBACK: begin
