@@ -417,16 +417,16 @@ always @(posedge clk)
         //$display("[CPU] Begin stage ", next_stage);
         case (next_stage)
         FETCH: begin
-            $display("[CPU] Fetch ", pc);
+            $display("[CPU] Fetch %04x", pc);
             mem_bus_ctrl <= MEMBUS_FETCH;
             mem_addr <= pc;
         end
 
         DECODE: begin
-            $display("[CPU] Decode opcode ", decode_opcode);
+            $display("[CPU] Decode opcode %02x", decode_opcode);
             if (decode_instruction_not_implemented) begin
                 `ifndef SYNTHESIS
-                    $display("Opcode not implemented: ", decode_opcode);
+                    $display("Opcode not implemented: %02x", decode_opcode);
                     $finish;
                 `endif
                 halted <= 1;
@@ -464,24 +464,24 @@ always @(posedge clk)
         end
 
         DECODE_MEM1: begin
-            $display("[CPU] Decode reading operand from ", pc + 1);
+            $display("[CPU] Decode reading operand from %04x", pc + 16'h1);
             mem_bus_ctrl <= MEMBUS_OPER;
-            mem_addr <= pc + 1;
+            mem_addr <= pc + 16'h1;
         end
         DECODE_MEM2: begin
-            $display("[CPU] Decode read operand ", mem_data_read);
+            $display("[CPU] Decode read operand %02x", mem_data_read);
             if (decode_mem_operand_is_store_addr)
                 store_mem_addr[7:0] <= mem_data_read;
             else
                 exec_oper1 <= sext(mem_data_read);
         end
         DECODE_MEM5: begin
-            $display("[CPU] Decode reading operand from ", pc + 2);
+            $display("[CPU] Decode reading operand from %04x", pc + 16'h2);
             mem_bus_ctrl <= MEMBUS_OPER;
-            mem_addr <= pc + 2;
+            mem_addr <= pc + 16'h2;
         end
         DECODE_MEM6: begin
-            $display("[CPU] Decode read operand ", mem_data_read);
+            $display("[CPU] Decode read operand %02x", mem_data_read);
             if (decode_mem_operand_is_store_addr)
                 store_mem_addr[15:8] <= mem_data_read;
             else
@@ -489,29 +489,29 @@ always @(posedge clk)
         end
 
         LOAD_MEM1: begin
-            $display("[CPU] Load from ", exec_oper1);
+            $display("[CPU] Load from %04x", exec_oper1);
             load_mem_addr <= exec_oper1;
             mem_bus_ctrl <= MEMBUS_LOAD;
             mem_addr <= exec_oper1;
         end
         LOAD_MEM2: begin
-            $display("[CPU] Load result ", mem_data_read);
+            $display("[CPU] Load result %02x", mem_data_read);
             exec_oper1 <= sext(mem_data_read);
         end
         LOAD_MEM5: begin
-            $display("[CPU] Load from ", load_mem_addr + 1);
+            $display("[CPU] Load from %04x", load_mem_addr + 16'h1);
             mem_bus_ctrl <= MEMBUS_LOAD;
-            mem_addr <= load_mem_addr + 1;
+            mem_addr <= load_mem_addr + 16'h1;
         end
         LOAD_MEM6: begin
-            $display("[CPU] Load result ", mem_data_read);
+            $display("[CPU] Load result %02x", mem_data_read);
             exec_oper1[15:8] <= mem_data_read;
         end
 
         EXECUTE: begin
             wb_data <= alu_out[15:0];
             wb_flags <= {alu_out_Z, alu_out_N, alu_out_H, alu_out_C};
-            $display("[CPU] Execute ALU op ", alu_op, " in1: ", exec_oper1, " in2: ", exec_oper2, " out: ", alu_out[15:0], " F ", alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
+            $display("[CPU] Execute ALU op %x  in1: %04x  in2: %04x  out: %04x  F %d%d%d%d", alu_op, exec_oper1, exec_oper2, alu_out[15:0], alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
         end
 
         STORE_MEM1: begin
@@ -525,9 +525,9 @@ always @(posedge clk)
             mem_do_write <= 0;
         end
         STORE_MEM5: begin
-            $display("[CPU] Store %02x to %04x", store_mem_data[15:8], store_mem_addr + 1);
+            $display("[CPU] Store %02x to %04x", store_mem_data[15:8], store_mem_addr + 16'h1);
             mem_bus_ctrl <= MEMBUS_STORE;
-            mem_addr <= store_mem_addr + 1;
+            mem_addr <= store_mem_addr + 16'h1;
             mem_data_write <= store_mem_data[15:8];
             mem_do_write <= 1;
         end
@@ -536,7 +536,7 @@ always @(posedge clk)
         end
 
         WRITEBACK: begin
-            $display("[CPU] WB ", wb_data, " to ", wb_dest);
+            $display("[CPU] WB %04x to %x", wb_data, wb_dest);
             case (wb_dest)
                 DE_SP:     sp <= wb_data;
                 DE_REG_A:  reg_A <= wb_data[7:0];

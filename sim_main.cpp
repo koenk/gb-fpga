@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         }
         main_time++;
 
-        if (top->dbg_halted) {
+        if (top->dbg_instruction_retired && top->dbg_halted) {
             printf("CPU halted, exiting\n");
             break;
         }
