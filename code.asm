@@ -1,29 +1,23 @@
-ldi A, 0xF8
-ldi B, 0xDE
-ldi C, 0xAD
-ldi BC, 0xBEEF
+ldi a, 0x1f # opcode 0x1f is not implemented, so this is trap for jumping to 0x1
+ldi SP, 0x0040
+ldi BC, 0xdead
+ldi DE, 0xbeef
+ldi HL, 0xf00f
+
+ldi A, 0xf8
 inc A
-JR NZ, -3
+jr NZ, -3
+ldi A, 0xaa
 
-inc A
+xor A
+call NZ, 1
+call C, 1
+call Z, 0x20
 
-jr 4
-inc A # skipped
-inc B # skipped
-inc C # skipped
-inc D # skipped
+hlt
 
-ldi C, 0xFF
-inc BC
-ldi a, 0
-add b
-ldi hl, 0x0003
-ldhli a, (hl+)
-ldhli b, (hl+)
-ldhli c, (hl+)
-#hlt
-xor A # 0x00=nop
-st (0x0001), A
-inc A # 0x01=hlt
-st (0x0002), A
-jp 0x0001
+ldi DE, 0xcafe
+ret NZ
+ret C
+ldi A, 0xaa
+ret

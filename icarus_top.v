@@ -21,7 +21,7 @@ module icarus_top ();
         dbg_instruction_retired, dbg_halted);
 
     always @(posedge dbg_instruction_retired) begin
-        $display(" PC   SP   AF   BC   DE   HL   Fl\n%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
+        $display(" PC   SP   AF   BC   DE   HL  ZNHC\n%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
                  dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
                  dbg_AF[7], dbg_AF[6], dbg_AF[5], dbg_AF[4]);
         if (dbg_halted)

@@ -30,6 +30,13 @@ opcodes = {
     'ldi16': 0x15,
     'ld16': 0x16,
     'ldhli': 0x17,
+    'push': 0x18,
+    'pop': 0x19,
+    'call': 0x1a,
+    'callcc': 0x1b,
+    'ret': 0x1c,
+    'retcc': 0x1d,
+    # max 0x1f
 }
 
 arg_reg8_shift = 5
@@ -80,7 +87,7 @@ class Instruction:
         argbytes = []
         if op in ('nop', 'hlt'):
             assert(len(args) == 0)
-        elif op in ('jr', 'jp'):
+        elif op in ('jr', 'jp', 'call'):
             assert(len(args) in (1, 2))
             if len(args) == 2:
                 opcode = opcodes[f'{op}cc']
@@ -89,7 +96,7 @@ class Instruction:
             else:
                 addr = parseint(args[0])
             argbytes.append(addr & 0xff)
-            if op == 'jp':
+            if op in ('jp', 'call'):
                 argbytes.append((addr >> 8) & 0xff)
         elif op in ('inc', 'dec', 'add', 'sub', 'or', 'and', 'xor'):
             assert(len(args) == 1)
@@ -134,6 +141,15 @@ class Instruction:
             assert(len(args) == 2)
             assert(args[1] == '(hl+)')
             opcode |= arg_reg8[args[0]] << arg_reg8_shift
+        elif op in ('push', 'pop'):
+            assert(len(args) == 1)
+            assert(args[0] != 'sp')
+            opcode |= arg_reg16[args[0]] << arg_reg16_shift
+        elif op == 'ret':
+            assert(len(args) in (0, 1))
+            if len(args) == 1:
+                opcode = opcodes[f'{op}cc']
+                opcode |= arg_cond[args[0]] << arg_cond_shift
 
         self.bytes = [opcode] + argbytes
 

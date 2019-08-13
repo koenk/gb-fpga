@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         top->eval();
 
         if (top->clk == 1 && top->dbg_instruction_retired) {
-            printf(" PC   SP   AF   BC   DE   HL   Fl\n"
+            printf(" PC   SP   AF   BC   DE   HL  ZNHC\n"
                    "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
                    top->dbg_pc, top->dbg_sp, top->dbg_AF, top->dbg_BC,
                    top->dbg_DE, top->dbg_HL,
