@@ -3,16 +3,12 @@
 module main (
     input clk,
 
-    output [7:0] dbg1,
-    output [7:0] dbg2,
-    output [7:0] dbg3,
-    output [7:0] dbg4,
-
     output [15:0] dbg_pc,
-    output [3:0] dbg_F,
-    output [7:0] dbg_A,
-    output [7:0] dbg_B,
-    output [7:0] dbg_C,
+    output [15:0] dbg_sp,
+    output [15:0] dbg_AF,
+    output [15:0] dbg_BC,
+    output [15:0] dbg_DE,
+    output [15:0] dbg_HL,
     output dbg_instruction_retired,
     output dbg_halted
 );
@@ -39,11 +35,6 @@ initial begin
     $readmemh("build/code.hex", mem);
 end
 
-assign dbg1 = mem[0];
-assign dbg2 = mem[1];
-assign dbg3 = mem[2];
-assign dbg4 = mem[3];
-
 cpu cpu(
     clk,
     reset,
@@ -56,10 +47,11 @@ cpu cpu(
     dbg_halted,
 
     dbg_pc,
-    dbg_F,
-    dbg_A,
-    dbg_B,
-    dbg_C,
+    dbg_sp,
+    dbg_AF,
+    dbg_BC,
+    dbg_DE,
+    dbg_HL,
     dbg_instruction_retired
 );
 

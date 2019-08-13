@@ -56,7 +56,7 @@ CXXFLAGS := -I. -I$(SIMDIR) -I$(VERILATOR_DIR) -I$(VERILATOR_DIR)/vltstd \
 		   $(shell pkg-config gtkmm-2.4 --cflags)
 LDLIBS = -lm -lstdc++ $(shell pkg-config gtkmm-2.4 --libs)
 
-BIT_SOURCES := $(BITTOP).v
+BIT_SOURCES := $(BITTOP).v $(SOURCES)
 SIM_OBJS := $(patsubst %.cpp,$(SIMDIR)/%.o,$(SIM_SOURCES))
 ASMHEX := $(patsubst %.asm,$(BUILDDIR)/%.hex,$(ASM))
 

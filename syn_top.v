@@ -16,32 +16,25 @@ always @(posedge device_clk)
     clk_cnt = clk_cnt + 1;
 assign clk = clk_cnt[15];
 
-reg [7:0] dbg1, dbg2, dbg3, dbg4;
-reg [15:0] dbg_pc;
-reg [3:0] dbg_F;
-reg [7:0] dbg_A, dbg_B, dbg_C;
+wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
 reg dbg_instruction_retired;
 wire dbg_halted;
 
-assign {led4, led3, led2, led1} = dbg_C[3:0];
+assign {led4, led3, led2, led1} = dbg_BC[11:8];
 assign led5 = dbg_halted;
 
 assign {TR10, TR9, TR8, TR7, TR6, TR5, TR4, TR3} = dbg_pc[7:0];
-assign {BR10, BR9, BR8, BR7, BR6, BR5, BR4, BR3} = dbg_A;
-
-//assign {TR10, TR9, TR8, TR7, TR6, TR5, TR4, TR3} = dbg1;
-//assign {BR10, BR9, BR8, BR7, BR6, BR5, BR4, BR3} = dbg2;
+assign {BR10, BR9, BR8, BR7, BR6, BR5, BR4, BR3} = dbg_AF[15:8];
 
 main main(
     clk,
 
-    dbg1, dbg2, dbg3, dbg4,
-
     dbg_pc,
-    dbg_F,
-    dbg_A,
-    dbg_B,
-    dbg_C,
+    dbg_sp,
+    dbg_AF,
+    dbg_BC,
+    dbg_DE,
+    dbg_HL,
     dbg_instruction_retired,
     dbg_halted
 );

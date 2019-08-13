@@ -17,17 +17,18 @@ int main(int argc, char **argv) {
 
     top->clk = 0;
 
-#if 1
     while (!Verilated::gotFinish()) {
         top->clk = !top->clk;
 
         top->eval();
 
         if (top->clk == 1 && top->dbg_instruction_retired) {
-            printf("pc: %04x   F: %d%d%d%d  A: %02x  B: %02x  C: %02x\n\n",
-                    top->dbg_pc,
-                    BIT(top->dbg_F, 3), BIT(top->dbg_F, 2), BIT(top->dbg_F, 1), BIT(top->dbg_F, 0),
-                    top->dbg_A, top->dbg_B, top->dbg_C);
+            printf(" PC   SP   AF   BC   DE   HL   Fl\n"
+                   "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
+                   top->dbg_pc, top->dbg_sp, top->dbg_AF, top->dbg_BC,
+                   top->dbg_DE, top->dbg_HL,
+                   BIT(top->dbg_AF, 7), BIT(top->dbg_AF, 6),
+                   BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4));
         }
         main_time++;
 
@@ -40,7 +41,6 @@ int main(int argc, char **argv) {
     top->final();
 
     delete top;
-#endif
 
     return 0;
 }

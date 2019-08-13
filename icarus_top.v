@@ -13,14 +13,19 @@ module icarus_top ();
         $dumpvars(0, icarus_top);
     end
 
-    wire [7:0] dbg1, dbg2, dbg3, dbg4;
-    wire [7:0] dbg_A, dbg_B, dbg_C;
-    wire [3:0] dbg_F;
-    wire [15:0] dbg_pc;
+    wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
     wire dbg_instruction_retired;
     wire dbg_halted;
 
-    main main(clk, dbg1, dbg2, dbg3, dbg4, dbg_pc, dbg_F, dbg_A, dbg_B, dbg_C,
+    main main(clk, dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
         dbg_instruction_retired, dbg_halted);
+
+    always @(posedge dbg_instruction_retired) begin
+        $display(" PC   SP   AF   BC   DE   HL   Fl\n%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
+                 dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
+                 dbg_AF[7], dbg_AF[6], dbg_AF[5], dbg_AF[4]);
+        if (dbg_halted)
+            $finish;
+    end
 
 endmodule

@@ -10,10 +10,11 @@ module cpu (
     output cpu_is_halted,
 
     output [15:0] dbg_pc,
-    output [3:0] dbg_F,
-    output [7:0] dbg_A,
-    output [7:0] dbg_B,
-    output [7:0] dbg_C,
+    output [15:0] dbg_sp,
+    output [15:0] dbg_AF,
+    output [15:0] dbg_BC,
+    output [15:0] dbg_DE,
+    output [15:0] dbg_HL,
     output dbg_instruction_retired
 );
 
@@ -160,10 +161,11 @@ assign mem_do_write = 0;
 assign cpu_is_halted = halted;
 
 assign dbg_pc = pc;
-assign dbg_F = reg_Fh;
-assign dbg_A = reg_A;
-assign dbg_B = reg_B;
-assign dbg_C = reg_C;
+assign dbg_sp = sp;
+assign dbg_AF = {reg_A, reg_F};
+assign dbg_BC = {reg_B, reg_C};
+assign dbg_DE = {reg_D, reg_E};
+assign dbg_HL = {reg_H, reg_L};
 assign dbg_instruction_retired = stage == WRITEBACK;
 
 assign reg_Fh = {Z, N, H, C};
@@ -299,7 +301,7 @@ function automatic [15:0] operand_mux(input [4:0] operand, input [15:0] const_va
         DE_REG_E:  operand_mux = sext(reg_E);
         DE_REG_H:  operand_mux = sext(reg_H);
         DE_REG_L:  operand_mux = sext(reg_L);
-        DE_REG_AF: operand_mux = {reg_F, reg_A};
+        DE_REG_AF: operand_mux = {reg_A, reg_F};
         DE_REG_BC: operand_mux = {reg_B, reg_C};
         DE_REG_DE: operand_mux = {reg_D, reg_E};
         DE_REG_HL: operand_mux = {reg_H, reg_L};
@@ -344,9 +346,15 @@ always @(posedge clk)
         stage <= RESET;
         halted <= 0;
         pc <= 16'h0000;
+        sp <= 16'h0000;
         reg_A <= 8'h00;
         reg_B <= 8'h00;
         reg_C <= 8'h00;
+        reg_D <= 8'h00;
+        reg_E <= 8'h00;
+        reg_H <= 8'h00;
+        reg_L <= 8'h00;
+        {Z, N, H, C} <= 4'h0;
     end else begin
         //$display("[CPU] Begin stage ", next_stage);
         case (next_stage)
