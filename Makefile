@@ -27,6 +27,8 @@ ASM = bootrom.asm
 
 DEV = hx1k
 PINS = icestick.pcf
+#DEV = up5k
+#PINS = icebreaker.pcf
 
 BOOTROMSIZE = 256
 
