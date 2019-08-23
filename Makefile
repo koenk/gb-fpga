@@ -20,14 +20,15 @@ BITTOP = syn_top
 SIMTOP = main
 ICARUSTOP = icarus_top
 
-SOURCES = main.v cpu.v
+SOURCES = main.v cpu.v ioports.v bootrom.v lram.v ram.v cart.v
 SIM_SOURCES = sim_main.cpp
 
-ASM = code.asm
+ASM = bootrom.asm
 
 DEV = hx1k
 PINS = icestick.pcf
-RAMSIZE = 128
+
+BOOTROMSIZE = 256
 
 AS = python3 as.py
 SYN = yosys
@@ -93,7 +94,7 @@ icarus-run: icarus
 #
 $(BUILDDIR)/%.hex: %.asm | $(BUILDDIR)
 	$(LOG) [AS]
-	$(AS) $< $@ $(RAMSIZE)
+	$(AS) $< $@ $(BOOTROMSIZE)
 
 #
 # Verilator simulation

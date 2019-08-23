@@ -1,5 +1,5 @@
 ldi a, 0x1f # opcode 0x1f is not implemented, so this is trap for jumping to 0x1
-ldi SP, 0x0040
+ldi SP, 0xfff0
 ldi BC, 0xdead
 ldi DE, 0xbeef
 ldi HL, 0xf00f
