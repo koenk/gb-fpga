@@ -48,7 +48,7 @@ SIMDIR = $(BUILDDIR)/sim
 
 SYN_FLAGS = -DSYNTHESIS
 PNR_FLAGS = --$(DEV)
-VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP)
+VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP) -DDEBUG
 
 VERILATOR_DIR = /usr/share/verilator/include
 CXXFLAGS := -I. -I$(SIMDIR) -I$(VERILATOR_DIR) -I$(VERILATOR_DIR)/vltstd \

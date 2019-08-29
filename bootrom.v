@@ -9,7 +9,8 @@ module bootrom (
 );
 
 parameter size = 'h100;
-parameter contents_file = "build/bootrom.hex";
+//parameter contents_file = "build/bootrom.hex";
+parameter contents_file = "dmg_boot.hex";
 
 reg [7:0] mem [size-1:0];
 
