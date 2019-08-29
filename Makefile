@@ -76,7 +76,7 @@ else
 endif
 
 .SUFFIXES: # Disable builtin rules
-.PHONY: all sim bit icarus run prog icarus-run clean
+.PHONY: all sim bit icarus run prog icarus-run clean test-cpu
 
 all: sim
 bit: $(BITDIR)/$(BITTOP).bin
@@ -90,6 +90,9 @@ prog: bit
 	$(ICEPROG) $(BITDIR)/$(BITTOP).bin
 icarus-run: icarus
 	$(ICARUS_RUN) $(BUILDDIR)/icarus
+
+test-cpu:
+	$(MAKE) -C test_instructions run
 
 #
 # Assembly to load as program in CPU
