@@ -20,7 +20,7 @@ BITTOP = syn_top
 SIMTOP = main
 ICARUSTOP = icarus_top
 
-SOURCES = main.v cpu.v ioports.v bootrom.v lram.v ram.v cart.v
+SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
 SIM_SOURCES = sim_main.cpp
 
 ASM = bootrom.asm

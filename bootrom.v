@@ -4,8 +4,10 @@
 
 module bootrom (
     input clk,
-    input [7:0] addr,
-    output reg [7:0] data
+    input enabled,
+    input [15:0] addr,
+    output reg [7:0] data,
+    output data_active
 );
 
 parameter size = 'h100;
@@ -18,7 +20,9 @@ initial begin
     $readmemh(contents_file, mem);
 end
 
+assign data_active = enabled && addr < size;
+
 always @(negedge clk)
-    data <= mem[addr];
+    data <= mem[addr[7:0]];
 
 endmodule

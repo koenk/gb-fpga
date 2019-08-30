@@ -7,7 +7,8 @@ module lram (
     input [15:0] abs_addr,
     output reg [7:0] data_r,
     input [7:0] data_w,
-    input write_enable
+    input write_enable,
+    output data_active
 );
 
 parameter base = 'hFF80;
@@ -28,6 +29,9 @@ initial begin
         mem[i] = 8'hff;
 end
 `endif
+
+assign data_active = !write_enable &&
+    abs_addr >= base && abs_addr < base + size;
 
 assign rel_addr = abs_addr - base;
 assign addr = rel_addr[addrbits-1:0];
