@@ -325,6 +325,10 @@ always @(*) begin
         decode_load_mem8 = 1;
         decode_oper1 = DE_IO_IMM;
         decode_dest = DE_REG_A;
+    end else if (opc == 'hfa) begin                 // LD A, (imm16)
+        decode_load_mem8 = 1;
+        decode_oper1 = DE_IMM16;
+        decode_dest = DE_REG_A;
 
     end else if (opc == 'h22) begin                 // LD (HL+), A
         decode_store_mem8 = 1;
