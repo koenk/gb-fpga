@@ -23,16 +23,15 @@ ICARUSTOP = icarus_top
 SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
 SIM_SOURCES = sim_main.cpp
 
-ASM = bootrom.asm
+BOOTROM = dmg_boot.hex
+ROM = build/halt.hex
+ROMDIR = roms
 
 DEV = hx1k
 PINS = icestick.pcf
 #DEV = up5k
 #PINS = icebreaker.pcf
 
-BOOTROMSIZE = 256
-
-AS = python3 as.py
 SYN = yosys
 PNR = nextpnr-ice40
 ICEPACK = icepack
@@ -48,7 +47,8 @@ SIMDIR = $(BUILDDIR)/sim
 
 SYN_FLAGS = -DSYNTHESIS
 PNR_FLAGS = --$(DEV)
-VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP) -DDEBUG
+VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP) -DROMFILE="$(ROM)"
+IVERILOG_FLAGS = -DROMFILE="$(ROM)"
 
 VERILATOR_DIR = /usr/share/verilator/include
 CXXFLAGS := -I. -I$(SIMDIR) -I$(VERILATOR_DIR) -I$(VERILATOR_DIR)/vltstd \
@@ -61,7 +61,6 @@ LDLIBS = -lm -lstdc++ $(shell pkg-config gtkmm-2.4 --libs)
 
 BIT_SOURCES := $(BITTOP).v $(SOURCES)
 SIM_OBJS := $(patsubst %.cpp,$(SIMDIR)/%.o,$(SIM_SOURCES))
-ASMHEX := $(patsubst %.asm,$(BUILDDIR)/%.hex,$(ASM))
 
 
 # Verbosity control
@@ -75,6 +74,7 @@ else
 	LOG=@true
 endif
 
+.SECONDARY: # Don't remove intermediate files
 .SUFFIXES: # Disable builtin rules
 .PHONY: all sim bit icarus run prog icarus-run clean test-cpu
 
@@ -95,18 +95,11 @@ test-cpu:
 	$(MAKE) -C test_instructions run
 
 #
-# Assembly to load as program in CPU
-#
-$(BUILDDIR)/%.hex: %.asm | $(BUILDDIR)
-	$(LOG) [AS]
-	$(AS) $< $@ $(BOOTROMSIZE)
-
-#
 # Verilator simulation
 #
 # Verilator doesn't like nested directories, so we build the exe ourselves too.
 #
-$(SIMDIR)/V$(SIMTOP)__ALL.a: $(SIMTOP).v $(SOURCES) $(ASMHEX) | $(SIMDIR)
+$(SIMDIR)/V$(SIMTOP)__ALL.a: $(SIMTOP).v $(SOURCES) $(BOOTROM) $(ROM) | $(SIMDIR)
 	$(LOG) [VERILATOR]
 	$(VERILATOR) $(VERILATOR_FLAGS) $<
 	$(MAKE) -C $(SIMDIR) -B -f V$(SIMTOP).mk
@@ -123,7 +116,7 @@ $(SIMDIR)/V$(SIMTOP): $(SIM_OBJS) $(SIMDIR)/verilated.o $(SIMDIR)/V$(SIMTOP)__AL
 #
 # Synthesis for ice40
 #
-$(BITDIR)/$(BITTOP).json: $(BIT_SOURCES) $(ASMHEX) | $(BITDIR)
+$(BITDIR)/$(BITTOP).json: $(BIT_SOURCES) $(BOOTROM) $(ROM) | $(BITDIR)
 	$(LOG) [SYN]
 	$(SYN) $(SYN_FLAGS) -p "synth_ice40 -top $(BITTOP) -json $@" $<
 $(BITDIR)/$(BITTOP).asc: $(BITDIR)/$(BITTOP).json
@@ -136,9 +129,18 @@ $(BITDIR)/$(BITTOP).bin: $(BITDIR)/$(BITTOP).asc
 #
 # Icarus simulation
 #
-$(BUILDDIR)/icarus: $(ICARUSTOP).v $(SOURCES) $(ASMHEX) | $(BUILDDIR)
+$(BUILDDIR)/icarus: $(ICARUSTOP).v $(SOURCES) $(BOOTROM) $(ROM) | $(BUILDDIR)
 	$(LOG) [IVERILOG]
-	$(IVERILOG) -o $@ $<
+	$(IVERILOG) -o $@ $< $(IVERILOG_FLAGS)
+
+#
+# ROM files for testing.
+#
+include roms/Makefile.inc
+
+%.hex: %.gb
+	$(LOG) [HEX]
+	hexdump -v -e '32/1 "%02x ""\n"' $< > $@
 
 
 $(BUILDDIR) $(SIMDIR) $(BITDIR):
