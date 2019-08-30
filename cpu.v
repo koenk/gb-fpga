@@ -300,7 +300,9 @@ always @(*) begin
     decode_opcode = mem_data_read;
     opc = decode_opcode;
 
-    if (opc == 'h76) begin                          // HALT
+    if (opc == 'h00) begin                          // NOP
+        ;
+    end else if (opc == 'h76) begin                 // HALT
         decode_halt = 1;
 
     end else if ((opc & 'hcf) == 'h01) begin        // LD r16, imm16
@@ -371,7 +373,10 @@ always @(*) begin
         decode_dest = DE_PC;
         decode_SP_op = SP_OP_INC2;
 
-    end else if (opc == 'h18) begin                 // JR cc, off8
+    end else if (opc == 'hc3) begin                 // JP imm16
+        decode_oper1 = DE_IMM16;
+        decode_dest = DE_PC;
+    end else if (opc == 'h18) begin                 // JR off8
         decode_alu_op = ALU_ADD;
         decode_oper1 = DE_IMM8;
         decode_oper2 = DE_PC;
@@ -406,6 +411,11 @@ always @(*) begin
         decode_oper2 = DE_CONST;
         decode_dest = decode_operand_reg8(opc[5:3]);
         decode_flags_mask = 4'b1110;
+    end else if ((opc & 'hf8) == 'h80) begin        // ADD r8
+        decode_alu_op = ALU_ADD;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
     end else if ((opc & 'hf8) == 'ha8) begin        // XOR r8
         decode_alu_op = ALU_XOR;
         decode_oper2 = decode_operand_reg8(opc[2:0]);
