@@ -20,6 +20,7 @@ module icarus_top ();
     main main(clk, dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
         dbg_instruction_retired, dbg_halted);
 
+    `ifdef DEBUG
     always @(posedge dbg_instruction_retired) begin
         $display(" PC   SP   AF   BC   DE   HL  ZNHC\n%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
                  dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
@@ -27,5 +28,6 @@ module icarus_top ();
         if (dbg_halted)
             $finish;
     end
+    `endif
 
 endmodule

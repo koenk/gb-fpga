@@ -550,7 +550,7 @@ always @(*)
  */
 always @(posedge clk)
     if (reset) begin
-        `ifdef DEBUG
+        `ifdef DEBUG_CPU
             $display("[CPU] Reset");
         `endif
         stage <= RESET;
@@ -569,14 +569,14 @@ always @(posedge clk)
     end else begin
         case (next_stage)
         FETCH: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Fetch %04x", pc);
             `endif
             mem_addr <= pc;
         end
 
         DECODE: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode opcode %02x", decode_opcode);
             `endif
             if (decode_instruction_not_implemented) begin
@@ -635,13 +635,13 @@ always @(posedge clk)
         end
 
         DECODE_CB1: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Fetch CB %04x", pc + 16'h1);
             `endif
             mem_addr <= pc + 16'h1;
         end
         DECODE_CB2: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode opcode cb %02x", decode_cb_opcode);
             `endif
             if (decode_cb_instruction_not_implemented) begin
@@ -669,13 +669,13 @@ always @(posedge clk)
         end
 
         DECODE_IMM1: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode reading operand from %04x", pc + 16'h1);
             `endif
             mem_addr <= pc + 16'h1;
         end
         DECODE_IMM2: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode read operand %02x", mem_data_read);
             `endif
             if (decode_imm_operand_is_store_addr)
@@ -686,13 +686,13 @@ always @(posedge clk)
                 exec_oper1 <= sext(mem_data_read);
         end
         DECODE_IMM5: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode reading operand from %04x", pc + 16'h2);
             `endif
             mem_addr <= pc + 16'h2;
         end
         DECODE_IMM6: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Decode read operand %02x", mem_data_read);
             `endif
             if (decode_imm_operand_is_store_addr)
@@ -704,7 +704,7 @@ always @(posedge clk)
         end
 
         LOAD_MEM1: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Load from %04x", exec_oper1);
             `endif
             if (load_use_oper2)
@@ -713,7 +713,7 @@ always @(posedge clk)
                 mem_addr <= load_from_iospace ? {8'hff, exec_oper1[7:0]} : exec_oper1;
         end
         LOAD_MEM2: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Load result %02x", mem_data_read);
             `endif
             load_mem_addr <= mem_addr;
@@ -723,13 +723,13 @@ always @(posedge clk)
                 exec_oper1 <= sext(mem_data_read);
         end
         LOAD_MEM5: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Load from %04x", load_mem_addr + 16'h1);
             `endif
             mem_addr <= load_mem_addr + 16'h1;
         end
         LOAD_MEM6: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Load result %02x", mem_data_read);
             `endif
             if (load_use_oper2)
@@ -739,7 +739,7 @@ always @(posedge clk)
         end
 
         EXECUTE: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Execute ALU op %x  in1: %04x  in2: %04x  out: %04x  F %d%d%d%d", alu_op, exec_oper1, exec_oper2, alu_out[15:0], alu_out_Z, alu_out_N, alu_out_H, alu_out_C);
             `endif
             wb_data <= alu_out[15:0];
@@ -749,7 +749,7 @@ always @(posedge clk)
         end
 
         STORE_MEM1: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Store %02x to %04x", store_mem_data[7:0], store_mem_addr);
             `endif
             mem_addr <= store_mem_addr;
@@ -760,7 +760,7 @@ always @(posedge clk)
             mem_do_write <= 0;
         end
         STORE_MEM5: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] Store %02x to %04x", store_mem_data[15:8], store_mem_addr + 16'h1);
             `endif
             mem_addr <= store_mem_addr + 16'h1;
@@ -772,7 +772,7 @@ always @(posedge clk)
         end
 
         WRITEBACK: begin
-            `ifdef DEBUG
+            `ifdef DEBUG_CPU
                 $display("[CPU] WB %04x to %x", wb_data, wb_dest);
             `endif
 

@@ -22,6 +22,7 @@ int main(int argc, char **argv) {
 
         top->eval();
 
+#ifdef DEBUG
         if (top->clk == 1 && top->dbg_instruction_retired) {
             printf(" PC   SP   AF   BC   DE   HL  ZNHC\n"
                    "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
@@ -30,6 +31,8 @@ int main(int argc, char **argv) {
                    BIT(top->dbg_AF, 7), BIT(top->dbg_AF, 6),
                    BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4));
         }
+#endif
+
         main_time++;
 
         if (top->dbg_instruction_retired && top->dbg_halted) {

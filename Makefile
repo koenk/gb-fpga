@@ -63,8 +63,18 @@ BIT_SOURCES := $(BITTOP).v $(SOURCES)
 SIM_OBJS := $(patsubst %.cpp,$(SIMDIR)/%.o,$(SIM_SOURCES))
 
 
+ifdef DEBUG
+	VERILATOR_FLAGS += -DDEBUG
+	IVERILOG_FLAGS += -DDEBUG
+	CXXFLAGS += -DDEBUG
+endif
+
+ifdef DEBUG_CPU
+	VERILATOR_FLAGS += -DDEBUG_CPU
+	IVERILOG_FLAGS += -DDEBUG_CPU
+endif
+
 # Verbosity control
-#ifneq ($(filter %s s%,$(MAKEFLAGS)),)
 ifndef V
 	LOG=@printf "\e[1;32m%s\e[0m $@\n"
 	SYN_FLAGS += -q
