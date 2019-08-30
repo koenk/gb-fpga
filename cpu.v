@@ -411,6 +411,15 @@ always @(*) begin
         decode_oper2 = decode_operand_reg8(opc[2:0]);
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'h90) begin        // SUB r8
+        decode_alu_op = ALU_SUB;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'hb8) begin       // CP r8
+        decode_alu_op = ALU_SUB;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_flags_mask = 4'b1111;
     end else if (opc == 'hfe) begin                 // CP imm8
         decode_alu_op = ALU_SUB;
         decode_oper2 = DE_IMM8;
