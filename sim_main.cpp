@@ -10,6 +10,15 @@ double sc_time_stamp() {
 
 #define BIT(val, bitpos) (((val) >> (bitpos)) & 1)
 
+void dump_state(void) {
+    printf(" PC   SP   AF   BC   DE   HL  ZNHC\n"
+            "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
+            top->dbg_pc, top->dbg_sp, top->dbg_AF, top->dbg_BC,
+            top->dbg_DE, top->dbg_HL,
+            BIT(top->dbg_AF, 7), BIT(top->dbg_AF, 6),
+            BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4));
+}
+
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
 
@@ -23,14 +32,8 @@ int main(int argc, char **argv) {
         top->eval();
 
 #ifdef DEBUG
-        if (top->clk == 1 && top->dbg_instruction_retired) {
-            printf(" PC   SP   AF   BC   DE   HL  ZNHC\n"
-                   "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
-                   top->dbg_pc, top->dbg_sp, top->dbg_AF, top->dbg_BC,
-                   top->dbg_DE, top->dbg_HL,
-                   BIT(top->dbg_AF, 7), BIT(top->dbg_AF, 6),
-                   BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4));
-        }
+        if (top->clk == 1 && top->dbg_instruction_retired)
+            dump_state();
 #endif
 
         main_time++;
@@ -40,6 +43,8 @@ int main(int argc, char **argv) {
             break;
         }
     }
+
+    dump_state();
 
     top->final();
 
