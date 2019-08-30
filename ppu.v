@@ -74,7 +74,6 @@ assign mem_data_active = !mem_do_write && (
 
 /* Handle reads from VRAM/OAM/PPU I/O ports */
 function [7:0] read(input [15:0] addr);
-    read = 'hff;
     if (vram_data_active)
         read = vram_data_r;
     else if (addr >= OAM_BASE && addr < OAM_BASE + OAM_SIZE)
@@ -93,7 +92,10 @@ function [7:0] read(input [15:0] addr);
             REG_OBP1: read = obj_pal1;
             REG_WY:   read = win_y;
             REG_WX:   read = win_x;
+            default:  read = 'hff;
         endcase
+    else
+        read = 'hff;
 endfunction
 assign mem_data_read = read(mem_addr);
 
