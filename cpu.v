@@ -15,7 +15,9 @@ module cpu (
     output [15:0] dbg_BC,
     output [15:0] dbg_DE,
     output [15:0] dbg_HL,
-    output dbg_instruction_retired
+    output dbg_instruction_retired,
+    output reg [7:0] dbg_last_opcode,
+    output [5:0] dbg_stage
 );
 
 /*
@@ -173,6 +175,7 @@ assign dbg_BC = {reg_B, reg_C};
 assign dbg_DE = {reg_D, reg_E};
 assign dbg_HL = {reg_H, reg_L};
 assign dbg_instruction_retired = stage == WRITEBACK;
+assign dbg_stage = stage;
 
 assign reg_Fh = {Z, N, H, C};
 assign reg_F = {reg_Fh, 4'h0};
@@ -593,6 +596,8 @@ always @(posedge clk)
 
             if (decode_halt)
                 halted <= 1;
+
+            dbg_last_opcode <= decode_opcode;
 
             alu_op <= decode_alu_op;
             alu_16bit <= decode_16bit;

@@ -15,7 +15,9 @@ module main (
     output [15:0] dbg_DE,
     output [15:0] dbg_HL,
     output dbg_instruction_retired,
-    output dbg_halted
+    output dbg_halted,
+    output [7:0] dbg_last_opcode,
+    output [5:0] dbg_stage
 );
 
 
@@ -92,7 +94,9 @@ cpu cpu(
     dbg_BC,
     dbg_DE,
     dbg_HL,
-    dbg_instruction_retired
+    dbg_instruction_retired,
+    dbg_last_opcode,
+    dbg_stage
 );
 
 
@@ -100,7 +104,7 @@ cpu cpu(
  * Hold reset line high for first few cycles.
  */
 always @(posedge clk)
-    if (reset_cnt == 8'hff)
+    if (reset_cnt == 8'h0f)
         reset <= 0;
     else
         reset_cnt <= reset_cnt + 1;

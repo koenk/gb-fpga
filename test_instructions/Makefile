@@ -15,6 +15,9 @@ VERILATOR_FLAGS = --Mdir $(BDIR) -Wall -O2 --cc --top-module $(VERTOP)
 ifdef DEBUG
 	VERILATOR_FLAGS += -DDEBUG
 endif
+ifdef DEBUG_CPU
+	VERILATOR_FLAGS += -DDEBUG_CPU
+endif
 
 VERILATOR_DIR = /usr/share/verilator/include
 CFLAGS   := -O2 -Wall -Wextra -g -MMD

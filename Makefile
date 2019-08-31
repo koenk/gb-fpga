@@ -27,10 +27,9 @@ BOOTROM = dmg_boot.hex
 ROM = build/test_mem.hex
 ROMDIR = roms
 
-DEV = hx1k
-PINS = icestick.pcf
-#DEV = up5k
-#PINS = icebreaker.pcf
+DEV = up5k
+PINS = icebreaker.pcf
+FREQ = 4.19
 
 SYN = yosys
 PNR = nextpnr-ice40
@@ -46,7 +45,7 @@ BITDIR = $(BUILDDIR)/bit
 SIMDIR = $(BUILDDIR)/sim
 
 SYN_FLAGS = -DSYNTHESIS
-PNR_FLAGS = --$(DEV)
+PNR_FLAGS = --$(DEV) --freq $(FREQ)
 VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP) -DROMFILE="$(ROM)"
 IVERILOG_FLAGS = -DROMFILE="$(ROM)"
 
@@ -126,7 +125,7 @@ $(SIMDIR)/V$(SIMTOP): $(SIM_OBJS) $(SIMDIR)/verilated.o $(SIMDIR)/V$(SIMTOP)__AL
 #
 # Synthesis for ice40
 #
-$(BITDIR)/$(BITTOP).json: $(BIT_SOURCES) $(BOOTROM) $(ROM) | $(BITDIR)
+$(BITDIR)/$(BITTOP).json: $(BIT_SOURCES) $(BOOTROM) | $(BITDIR)
 	$(LOG) [SYN]
 	$(SYN) $(SYN_FLAGS) -p "synth_ice40 -top $(BITTOP) -json $@" $<
 $(BITDIR)/$(BITTOP).asc: $(BITDIR)/$(BITTOP).json
