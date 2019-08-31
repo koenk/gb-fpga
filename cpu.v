@@ -573,12 +573,15 @@ always @(posedge clk)
         reg_L <= 8'h00;
         {Z, N, H, C} <= 4'h0;
         mem_do_write <= 0;
+        mem_addr <= 0;
     end else begin
         case (next_stage)
         FETCH: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Fetch %04x", pc);
             `endif
+            // For simulations (in particular, testcases), (re)start the fetch
+            // in case we start execution here (without reset cycles).
             mem_addr <= pc;
         end
 
@@ -649,7 +652,7 @@ always @(posedge clk)
             `endif
             mem_addr <= pc + 16'h1;
         end
-        DECODE_CB2: begin
+        DECODE_CB3: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Decode opcode cb %02x", decode_cb_opcode);
             `endif
@@ -683,7 +686,7 @@ always @(posedge clk)
             `endif
             mem_addr <= pc + 16'h1;
         end
-        DECODE_IMM2: begin
+        DECODE_IMM3: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Decode read operand %02x", mem_data_read);
             `endif
@@ -700,7 +703,7 @@ always @(posedge clk)
             `endif
             mem_addr <= pc + 16'h2;
         end
-        DECODE_IMM6: begin
+        DECODE_IMM7: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Decode read operand %02x", mem_data_read);
             `endif
@@ -721,7 +724,7 @@ always @(posedge clk)
             else
                 mem_addr <= load_from_iospace ? {8'hff, exec_oper1[7:0]} : exec_oper1;
         end
-        LOAD_MEM2: begin
+        LOAD_MEM3: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Load result %02x", mem_data_read);
             `endif
@@ -737,7 +740,7 @@ always @(posedge clk)
             `endif
             mem_addr <= load_mem_addr + 16'h1;
         end
-        LOAD_MEM6: begin
+        LOAD_MEM7: begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Load result %02x", mem_data_read);
             `endif
@@ -786,6 +789,8 @@ always @(posedge clk)
             `endif
 
             pc <= wb_dest == DE_PC ? wb_data : wb_pc;
+            mem_addr <= wb_dest == DE_PC ? wb_data : wb_pc; // Start next fetch
+
             {Z, N, H, C} <= ((reg_Fh & ~wb_flags_mask) |
                              (wb_flags & wb_flags_mask))
                             & ~wb_flags_override_reset;
