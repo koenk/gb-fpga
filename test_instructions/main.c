@@ -9,6 +9,9 @@
 #include "inputstate.h"
 #include "instructions.h"
 
+bool output_summarize = 1;
+bool enable_cb = 0;
+
 u8 instruction_mem[4];
 
 unsigned long num_tests = 0;
@@ -147,55 +150,114 @@ static int test_instruction(struct test_inst *inst) {
         //disassemble(instruction_mem);
         if (run_state(&state))
             return 1;
+
+        if (inst->is_cb_prefix)
+            tested_op_cb[instruction_mem[1]] = 1;
+        else
+            tested_op[instruction_mem[0]] = 1;
     } while (!next_state(inst, &op_state, &state));
 
     return 0;
+}
+
+static int test_instructions(size_t num_instructions,
+                             struct test_inst *insts,
+                             const char *prefix) {
+    size_t num_instructions_passed = 0;
+    for (size_t i = 0; i < num_instructions; i++) {
+        if (!output_summarize) {
+            printf("%s   ", insts[i].mnem);
+            if (insts[i].is_cb_prefix)
+                printf("(CB prefix)");
+            printf("\n");
+        }
+
+        if (!insts[i].enabled) {
+            if (!output_summarize)
+                printf(" Skipping\n");
+            continue;
+        }
+
+        if (test_instruction(&insts[i]))
+            return 1;
+
+        if (!output_summarize)
+            printf(" Ran %lu permutations\n", num_tests);
+        num_instructions_passed++;
+        num_tests = 0;
+    }
+
+    if (!output_summarize)
+        printf("\n");
+
+    printf("Tested %zu/%zu %sinstructions\n", num_instructions_passed,
+            num_instructions, prefix);
+    if (!output_summarize)
+        printf("\n");
+
+    return 0;
+}
+
+static bool is_valid_op(u8 op) {
+    u8 invalid_ops[] = { 0xcb,                          // Special case (prefix)
+                         0xd3, 0xdb, 0xdd,
+                         0xe3, 0xe4, 0xeb, 0xec, 0xed,
+                         0xf4, 0xfc, 0xfd };
+
+    for (size_t i = 0; i < sizeof(invalid_ops); i++)
+        if (invalid_ops[i] == op)
+            return false;
+
+    return true;
+}
+
+static bool is_valid_op_cb(u8 op) {
+    (void)op;
+    return true;
+}
+
+static void print_coverage(bool *op_table, bool (*is_valid)(u8),
+        const char *prefix) {
+    unsigned num_tested_ops, total_valid_ops;
+
+    num_tested_ops = 0, total_valid_ops = 0;
+    for (int op = 0; op <= 0xff; op++) {
+        if (op_table[op])
+            num_tested_ops++;
+        if (is_valid(op))
+            total_valid_ops++;
+    }
+
+    printf("Tested %d/%d %sopcodes\n", num_tested_ops, total_valid_ops, prefix);
+
+    if (num_tested_ops < total_valid_ops) {
+        printf("\nTable of untested %sopcodes:\n", prefix);
+        for (int op = 0; op <= 0xff; op++) {
+            if (op_table[op] || !is_valid(op))
+                printf("-- ");
+            else
+                printf("%02x ", op);
+            if ((op & 0xf) == 0xf)
+                printf("\n");
+        }
+        printf("\n");
+    }
 }
 
 static int test_all_instructions(void) {
     size_t num_instructions = sizeof(instructions) / sizeof(instructions[0]);
     size_t num_cb_instructions = sizeof(cb_instructions) / sizeof(cb_instructions[0]);
 
-    int num_instructions_passed = 0;
-    unsigned long num_tests_total = 0;
+    if (test_instructions(num_instructions, instructions, ""))
+        return 1;
 
-    for (size_t i = 0; i < num_instructions; i++) {
-        printf("%s\n", instructions[i].mnem);
-
-        if (!instructions[i].enabled) {
-            printf(" Skipping\n");
-            continue;
-        }
-
-        if (test_instruction(&instructions[i]))
+    if (enable_cb)
+        if (test_instructions(num_cb_instructions, cb_instructions, "CB "))
             return 1;
 
-        printf(" Ran %lu permutations\n", num_tests);
-        num_instructions_passed++;
-        num_tests_total += num_tests;
-        num_tests = 0;
-    }
-
-    for (size_t i = 0; i < num_cb_instructions; i++) {
-        printf("%s   (CB prefix)\n", cb_instructions[i].mnem);
-
-        if (!cb_instructions[i].enabled) {
-            printf(" Skipping\n");
-            continue;
-        }
-
-        if (test_instruction(&cb_instructions[i]))
-            return 1;
-
-        printf(" Ran %lu permutations\n", num_tests);
-        num_instructions_passed++;
-        num_tests_total += num_tests;
-        num_tests = 0;
-    }
-
-    printf("\n");
-    printf("Tested %d instructions successfully\n", num_instructions_passed);
-    printf("Ran %lu permutations total\n", num_tests_total);
+    print_coverage(tested_op, is_valid_op, "");
+    if (enable_cb)
+        print_coverage(tested_op_cb, is_valid_op_cb, "CB ");
 
     return 0;
 }
