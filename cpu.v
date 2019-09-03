@@ -62,13 +62,22 @@ localparam RESET       = 0,
            WRITEBACK   = 33;
 
 /* Operations the ALU can perform. */
-localparam ALU_NOP = 0,
-           ALU_ADD = 1,
-           ALU_SUB = 2,
-           ALU_OR  = 3,
-           ALU_AND = 4,
-           ALU_XOR = 5,
-           ALU_RL  = 6;
+localparam ALU_NOP  = 0,
+           ALU_ADD  = 1,
+           ALU_ADC  = 2,
+           ALU_SUB  = 3,
+           ALU_SBC  = 4,
+           ALU_AND  = 5,
+           ALU_XOR  = 6,
+           ALU_OR   = 7,
+           ALU_RLC  = 8,
+           ALU_RRC  = 9,
+           ALU_RL   = 10,
+           ALU_RR   = 11,
+           ALU_SLA  = 12,
+           ALU_SRA  = 13,
+           ALU_SWAP = 14,
+           ALU_SRL  = 15;
 
 /* Possible parameters during decoding (both source during decode/execute, and
  * destination during writeback). */
@@ -114,13 +123,14 @@ wire [3:0] reg_Fh;
 reg decode_halt;
 reg decode_instruction_not_implemented;
 reg decode_16bit;
-reg [2:0] decode_alu_op;
+reg [3:0] decode_alu_op;
 reg [4:0] decode_oper1, decode_oper2;
 reg [15:0] decode_oper1_constval, decode_oper2_constval;
 reg [1:0] decode_instr_length;
 reg [4:0] decode_dest;
 reg [7:0] decode_opcode, opc;
-reg [3:0] decode_flags_mask, decode_flags_override_reset;
+reg [3:0] decode_flags_mask;
+reg [3:0] decode_flags_override_set, decode_flags_override_reset;
 reg [1:0] decode_HL_op, decode_SP_op;
 reg decode_cond;
 reg decode_load_mem8, decode_load_mem16;
@@ -130,7 +140,7 @@ reg [15:0] decode_store_addr_constval, decode_store_data_constval;
 reg decode_cb_prefix;
 
 reg [7:0] decode_cb_opcode;
-reg [2:0] decode_cb_alu_op;
+reg [3:0] decode_cb_alu_op;
 reg [4:0] decode_cb_oper1;
 reg [4:0] decode_cb_oper2;
 reg [7:0] decode_cb_oper2_constval;
@@ -152,7 +162,7 @@ reg [15:0] store_mem_addr, store_mem_data;
 reg store_mem_execout;
 
 reg alu_16bit;
-reg [2:0] alu_op;
+reg [3:0] alu_op;
 reg [15:0] exec_oper1, exec_oper2;
 reg [16:0] alu_out; // 16 bit + 1 bit for capturing carry
 wire alu_out_Z, alu_out_N, alu_out_H;
@@ -161,7 +171,7 @@ reg alu_out_C;
 reg [4:0] wb_dest;
 reg [15:0] wb_data;
 reg [15:0] wb_pc;
-reg [3:0] wb_flags, wb_flags_mask, wb_flags_override_reset;
+reg [3:0] wb_flags, wb_flags_mask, wb_flags_override_set, wb_flags_override_reset;
 reg [1:0] wb_HL_op, wb_SP_op;
 
 localparam MEMBUS_FETCH=0, MEMBUS_OPER=1, MEMBUS_LOAD=2, MEMBUS_STORE=3;
@@ -288,6 +298,7 @@ always @(*) begin
     decode_instruction_not_implemented = 0;
     decode_flags_mask = 4'h0;
     decode_flags_override_reset = 4'h0;
+    decode_flags_override_set = 4'h0;
     decode_16bit = 0;
     decode_HL_op = HL_OP_NONE;
     decode_SP_op = SP_OP_NONE;
@@ -324,6 +335,16 @@ always @(*) begin
         decode_load_mem8 = 1;
         decode_oper1 = decode_operand_reg16(opc[5:4], 0);
         decode_dest = DE_REG_A;
+    end else if (opc == 'h2a) begin                 // LD A, (HL+)
+        decode_load_mem8 = 1;
+        decode_oper1 = DE_REG_HL;
+        decode_dest = DE_REG_A;
+        decode_HL_op = HL_OP_INC;
+    end else if (opc == 'h3a) begin                 // LD A, (HL-)
+        decode_load_mem8 = 1;
+        decode_oper1 = DE_REG_HL;
+        decode_dest = DE_REG_A;
+        decode_HL_op = HL_OP_DEC;
     end else if (opc == 'hf0) begin                 // LD A, ($FF00+imm8)
         decode_load_mem8 = 1;
         decode_oper1 = DE_IO_IMM;
@@ -333,6 +354,10 @@ always @(*) begin
         decode_oper1 = DE_IMM16;
         decode_dest = DE_REG_A;
 
+    end else if ((opc & 'hef) == 'h02) begin        // LD (r16), A
+        decode_store_mem8 = 1;
+        decode_store_addr_oper = decode_operand_reg16(opc[5:4], 0);
+        decode_store_data_oper = DE_REG_A;
     end else if (opc == 'h22) begin                 // LD (HL+), A
         decode_store_mem8 = 1;
         decode_store_addr_oper = DE_REG_HL;
@@ -379,6 +404,12 @@ always @(*) begin
         decode_oper1 = DE_SP;
         decode_dest = DE_PC;
         decode_SP_op = SP_OP_INC2;
+    end else if ((opc & 'he7) == 'hc0) begin        // RET cc
+        decode_cond = decode_operand_cond(opc[4:3]);
+        decode_load_mem16 = decode_cond;
+        decode_oper1 = DE_SP;
+        decode_dest = decode_cond ? DE_PC : DE_NONE;
+        decode_SP_op = decode_cond ? SP_OP_INC2 : SP_OP_NONE;
 
     end else if (opc == 'hc3) begin                 // JP imm16
         decode_oper1 = DE_IMM16;
@@ -388,6 +419,11 @@ always @(*) begin
         decode_oper1 = DE_IMM8;
         decode_oper2 = DE_PC;
         decode_dest = DE_PC;
+    end else if ((opc & 'he7) == 'hc2) begin        // JP cc, imm16
+        decode_oper1 = DE_IMM16;
+        decode_dest = DE_PC;
+        decode_cond = decode_operand_cond(opc[4:3]);
+        decode_dest = decode_cond ? DE_PC : DE_NONE;
     end else if ((opc & 'he7) == 'h20) begin        // JR cc, off8
         decode_alu_op = ALU_ADD;
         decode_oper1 = DE_IMM8;
@@ -401,11 +437,14 @@ always @(*) begin
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
         decode_flags_override_reset = 4'b1000;
-    end else if ((opc & 'hcf) == 'h03) begin        // INC r16
-        decode_alu_op = ALU_ADD;
-        decode_oper1 = decode_operand_reg16(opc[5:4], 0);
+    end else if (opc == 'h2f) begin                 // CPL
+        decode_alu_op = ALU_XOR;
+        decode_oper1 = DE_REG_A;
         decode_oper2 = DE_CONST;
-        decode_dest = decode_operand_reg16(opc[5:4], 0);
+        decode_oper2_constval = 'hff;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b0110;
+        decode_flags_override_set = 4'b0110;
     end else if ((opc & 'hc7) == 'h04) begin        // INC r8
         decode_alu_op = ALU_ADD;
         decode_oper1 = decode_operand_reg8(opc[5:3]);
@@ -423,8 +462,8 @@ always @(*) begin
         decode_oper2 = decode_operand_reg8(opc[2:0]);
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
-    end else if ((opc & 'hf8) == 'ha8) begin        // XOR r8
-        decode_alu_op = ALU_XOR;
+    end else if ((opc & 'hf8) == 'h88) begin        // ADC r8
+        decode_alu_op = ALU_ADC;
         decode_oper2 = decode_operand_reg8(opc[2:0]);
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
@@ -433,14 +472,87 @@ always @(*) begin
         decode_oper2 = decode_operand_reg8(opc[2:0]);
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
-    end else if ((opc & 'hf8) == 'hb8) begin       // CP r8
+    end else if ((opc & 'hf8) == 'h98) begin        // SBC r8
+        decode_alu_op = ALU_SBC;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'ha0) begin        // AND r8
+        decode_alu_op = ALU_AND;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'ha8) begin        // XOR r8
+        decode_alu_op = ALU_XOR;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'hb0) begin        // OR r8
+        decode_alu_op = ALU_OR;
+        decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if ((opc & 'hf8) == 'hb8) begin        // CP r8
         decode_alu_op = ALU_SUB;
         decode_oper2 = decode_operand_reg8(opc[2:0]);
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hc6) begin                 // ADD imm8
+        decode_alu_op = ALU_ADD;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hd6) begin                 // SUB imm8
+        decode_alu_op = ALU_SUB;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'he6) begin                 // AND imm8
+        decode_alu_op = ALU_AND;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hf6) begin                 // OR imm8
+        decode_alu_op = ALU_OR;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hce) begin                 // ADC imm8
+        decode_alu_op = ALU_ADC;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hde) begin                 // SBC imm8
+        decode_alu_op = ALU_SBC;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+    end else if (opc == 'hee) begin                 // XOR imm8
+        decode_alu_op = ALU_XOR;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
     end else if (opc == 'hfe) begin                 // CP imm8
         decode_alu_op = ALU_SUB;
         decode_oper2 = DE_IMM8;
         decode_flags_mask = 4'b1111;
+
+    end else if ((opc & 'hcf) == 'h03) begin        // INC r16
+        decode_alu_op = ALU_ADD;
+        decode_oper1 = decode_operand_reg16(opc[5:4], 0);
+        decode_oper2 = DE_CONST;
+        decode_dest = decode_operand_reg16(opc[5:4], 0);
+    end else if ((opc & 'hcf) == 'h0b) begin        // DEC r16
+        decode_alu_op = ALU_SUB;
+        decode_oper1 = decode_operand_reg16(opc[5:4], 0);
+        decode_oper2 = DE_CONST;
+        decode_dest = decode_operand_reg16(opc[5:4], 0);
+    end else if ((opc & 'hcf) == 'h09) begin        // ADD HL, r
+        decode_alu_op = ALU_ADD;
+        decode_16bit = 1;
+        decode_oper1 = DE_REG_HL;
+        decode_oper2 = decode_operand_reg16(opc[5:4], 0);
+        decode_dest = DE_REG_HL;
+        decode_flags_mask = 4'b0111;
 
     end else if (opc == 'hcb) begin                 // CB prefix
         decode_cb_prefix = 1;
@@ -463,24 +575,46 @@ end
 always @(*) begin
     decode_cb_opcode = mem_data_read;
     decode_cb_alu_op = ALU_NOP;
-    decode_cb_oper1 = DE_NONE;
     decode_cb_oper2 = DE_NONE;
     decode_cb_oper2_constval = 8'h01;
-    decode_cb_dest = DE_NONE;
     decode_cb_instruction_not_implemented = 0;
-    decode_cb_flags_mask = 4'h0;
 
-    if ((decode_cb_opcode & 'hf8) == 'h10) begin            // RL r8
+    decode_cb_oper1 = decode_operand_reg8(decode_cb_opcode[2:0]);
+    decode_cb_dest = decode_operand_reg8(decode_cb_opcode[2:0]);
+    decode_cb_flags_mask = 4'b1111;
+
+    if ((decode_cb_opcode & 'hf8) == 'h00) begin            // RLC r8
+        decode_cb_alu_op = ALU_RLC;
+    end else if ((decode_cb_opcode & 'hf8) == 'h08) begin   // RRC r8
+        decode_cb_alu_op = ALU_RRC;
+    end else if ((decode_cb_opcode & 'hf8) == 'h10) begin   // RL r8
         decode_cb_alu_op = ALU_RL;
-        decode_cb_oper1 = decode_operand_reg8(decode_cb_opcode[2:0]);
-        decode_cb_dest = decode_operand_reg8(decode_cb_opcode[2:0]);
-        decode_cb_flags_mask = 4'b1111;
+    end else if ((decode_cb_opcode & 'hf8) == 'h18) begin   // RR r8
+        decode_cb_alu_op = ALU_RR;
+    end else if ((decode_cb_opcode & 'hf8) == 'h20) begin   // SLA r8
+        decode_cb_alu_op = ALU_SLA;
+    end else if ((decode_cb_opcode & 'hf8) == 'h28) begin   // SRA r8
+        decode_cb_alu_op = ALU_SRA;
+    end else if ((decode_cb_opcode & 'hf8) == 'h30) begin   // SWAP r8
+        decode_cb_alu_op = ALU_SWAP;
+    end else if ((decode_cb_opcode & 'hf8) == 'h38) begin   // SRL r8
+        decode_cb_alu_op = ALU_SRL;
     end else if ((decode_cb_opcode & 'hc0) == 'h40) begin   // BIT n, r8
         decode_cb_alu_op = ALU_AND;
-        decode_cb_oper1 = decode_operand_reg8(decode_cb_opcode[2:0]);
         decode_cb_oper2 = DE_CONST;
-        decode_cb_oper2_constval = 8'b1 << ((decode_cb_opcode >> 3) & 7);
+        decode_cb_oper2_constval = 8'b1 << decode_cb_opcode[5:3];
+        decode_cb_dest = DE_NONE;
         decode_cb_flags_mask = 4'b1110;
+    end else if ((decode_cb_opcode & 'hc0) == 'h80) begin   // RES n, r8
+        decode_cb_alu_op = ALU_AND;
+        decode_cb_oper2 = DE_CONST;
+        decode_cb_oper2_constval = ~(8'b1 << decode_cb_opcode[5:3]);
+        decode_cb_flags_mask = 4'b0000;
+    end else if ((decode_cb_opcode & 'hc0) == 'hc0) begin   // SET n, r8
+        decode_cb_alu_op = ALU_OR;
+        decode_cb_oper2 = DE_CONST;
+        decode_cb_oper2_constval = 8'b1 << decode_cb_opcode[5:3];
+        decode_cb_flags_mask = 4'b0000;
     end else
         decode_cb_instruction_not_implemented = 1;
 end
@@ -524,30 +658,44 @@ endfunction
  */
 always @(*)
     case (alu_op)
-        ALU_NOP: begin alu_out = {1'b0, exec_oper1}; end
-        ALU_ADD: begin alu_out = {1'b0, exec_oper1} + {1'b0, exec_oper2}; end
-        ALU_SUB: begin alu_out = {1'b0, exec_oper1} - {1'b0, exec_oper2}; end
-        ALU_OR:  begin alu_out = {1'b0, exec_oper1} | {1'b0, exec_oper2}; end
-        ALU_AND: begin alu_out = {1'b0, exec_oper1} & {1'b0, exec_oper2}; end
-        ALU_XOR: begin alu_out = {1'b0, exec_oper1} ^ {1'b0, exec_oper2}; end
-        ALU_RL:  begin alu_out = {9'b0, exec_oper1[6:0], C}; end
-        default: alu_out = 17'hFFFF;
+        ALU_NOP:  begin alu_out = {1'b0, exec_oper1}; end
+        ALU_ADD:  begin alu_out = {1'b0, exec_oper1} + {1'b0, exec_oper2}; end
+        ALU_ADC:  begin alu_out = {1'b0, exec_oper1} + {1'b0, exec_oper2} + {16'b0, C}; end
+        ALU_SUB:  begin alu_out = {1'b0, exec_oper1} - {1'b0, exec_oper2}; end
+        ALU_SBC:  begin alu_out = {1'b0, exec_oper1} - {1'b0, exec_oper2} - {16'b0, C}; end
+        ALU_AND:  begin alu_out = {1'b0, exec_oper1} & {1'b0, exec_oper2}; end
+        ALU_XOR:  begin alu_out = {1'b0, exec_oper1} ^ {1'b0, exec_oper2}; end
+        ALU_OR:   begin alu_out = {1'b0, exec_oper1} | {1'b0, exec_oper2}; end
+        ALU_RLC:  begin alu_out = {9'b0, exec_oper1[6:0], exec_oper1[7]}; end
+        ALU_RRC:  begin alu_out = {9'b0, exec_oper1[0], exec_oper1[7:1]}; end
+        ALU_RL:   begin alu_out = {9'b0, exec_oper1[6:0], C}; end
+        ALU_RR:   begin alu_out = {9'b0, C, exec_oper1[7:1]}; end
+        ALU_SLA:  begin alu_out = {9'b0, exec_oper1[6:0], 1'b0}; end
+        ALU_SRA:  begin alu_out = {9'b0, exec_oper1[7], exec_oper1[7:1]}; end
+        ALU_SWAP: begin alu_out = {9'b0, exec_oper1[3:0], exec_oper1[7:4]}; end
+        ALU_SRL:  begin alu_out = {9'b0, 1'b0, exec_oper1[7:1]}; end
+        default:  alu_out = 17'hFFFF;
     endcase
 
 assign alu_out_Z = alu_16bit ? (alu_out[15:0] == 16'h0000) :
                                (alu_out[7:0] == 8'h00);
-assign alu_out_N = alu_op == ALU_SUB;
+assign alu_out_N = alu_op == ALU_SUB || alu_op == ALU_SBC;
 assign alu_out_H = alu_op == ALU_AND ||
-                   ((alu_op == ALU_ADD || alu_op == ALU_SUB) &&
-                    exec_oper1[4] ^ exec_oper2[4] ^ alu_out[4]); // TODO for 16-bit
-
+                   ((alu_op == ALU_ADD || alu_op == ALU_ADC ||
+                     alu_op == ALU_SUB || alu_op == ALU_SBC) &&
+                    (alu_16bit ? exec_oper1[12] ^ exec_oper2[12] ^ alu_out[12]
+                               : exec_oper1[4] ^ exec_oper2[4] ^ alu_out[4]));
 always @(*)
     case (alu_op)
-        ALU_ADD, ALU_SUB:
+        ALU_ADD, ALU_ADC, ALU_SUB, ALU_SBC:
             alu_out_C = alu_16bit ? alu_out[16] :
                             (exec_oper1[8] ^ exec_oper2[8] ^ alu_out[8]);
-        ALU_RL:
+        ALU_RLC, ALU_RL,
+        ALU_SLA:
             alu_out_C = exec_oper1[7];
+        ALU_RRC, ALU_RR,
+        ALU_SRA, ALU_SRL:
+            alu_out_C = exec_oper1[0];
         default:
             alu_out_C = 0;
     endcase
@@ -641,6 +789,7 @@ always @(posedge clk)
             wb_dest <= decode_dest;
             wb_pc <= pc + {14'b0, decode_instr_length};
             wb_flags_mask <= decode_flags_mask;
+            wb_flags_override_set <= decode_flags_override_set;
             wb_flags_override_reset <= decode_flags_override_reset;
             wb_HL_op <= decode_HL_op;
             wb_SP_op <= decode_SP_op;
@@ -793,7 +942,8 @@ always @(posedge clk)
 
             {Z, N, H, C} <= ((reg_Fh & ~wb_flags_mask) |
                              (wb_flags & wb_flags_mask))
-                            & ~wb_flags_override_reset;
+                            & ~wb_flags_override_reset
+                            | wb_flags_override_set;
 
             case (wb_dest)
                 DE_SP:     sp <= wb_data;
