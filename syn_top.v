@@ -14,6 +14,13 @@ module syn_top (
 main main(
     clk,
 
+    lcd_hblank,
+    lcd_vblank,
+    lcd_write,
+    lcd_col,
+    lcd_x,
+    lcd_y,
+
     dbg_pc,
     dbg_sp,
     dbg_AF,
@@ -26,6 +33,10 @@ main main(
     dbg_stage
 );
 
+wire lcd_hblank, lcd_vblank;
+wire lcd_write;
+wire [1:0] lcd_col;
+wire [7:0] lcd_x, lcd_y;
 
 /*
  * Clock.
@@ -86,7 +97,8 @@ assign {LED5, LED4, LED3, LED2, LED1} = dbg_pc[4:0];
 assign LEDR_N = ~dbg_halted;
 assign LEDG_N = clk;
 
-assign {P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } = dbg_AF[15:8];
+assign {P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } =
+    {2'b0, clk, lcd_write, lcd_hblank, lcd_vblank, lcd_col};
 assign {P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10 } = dbg_pc[7:0];
 
 

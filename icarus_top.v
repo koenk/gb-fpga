@@ -13,12 +13,38 @@ module icarus_top ();
         $dumpvars(0, icarus_top);
     end
 
+    wire lcd_hblank, lcd_vblank;
+    wire lcd_write;
+    wire [1:0] lcd_col;
+    wire [7:0] lcd_x, lcd_y;
+
     wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
+    wire [7:0] dbg_last_opcode;
+    wire [5:0] dbg_stage;
     wire dbg_instruction_retired;
     wire dbg_halted;
 
-    main main(clk, dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL,
-        dbg_instruction_retired, dbg_halted);
+    main main(
+        clk,
+
+        lcd_hblank,
+        lcd_vblank,
+        lcd_write,
+        lcd_col,
+        lcd_x,
+        lcd_y,
+
+        dbg_pc,
+        dbg_sp,
+        dbg_AF,
+        dbg_BC,
+        dbg_DE,
+        dbg_HL,
+        dbg_instruction_retired,
+        dbg_halted,
+        dbg_last_opcode,
+        dbg_stage
+    );
 
     `ifdef DEBUG
     always @(posedge dbg_instruction_retired) begin

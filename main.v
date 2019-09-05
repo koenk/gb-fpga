@@ -8,6 +8,13 @@
 module main (
     input clk,
 
+    output lcd_hblank,
+    output lcd_vblank,
+    output lcd_write,
+    output [1:0] lcd_col,
+    output [7:0] lcd_x,
+    output [7:0] lcd_y,
+
     output [15:0] dbg_pc,
     output [15:0] dbg_sp,
     output [15:0] dbg_AF,
@@ -75,7 +82,23 @@ ram #(.base(WRAM_BASE), .size(WRAM_SIZE), .addrbits(13))
 lram #(.base(HRAM_BASE), .size(HRAM_SIZE), .addrbits(7))
     hram (clk, cpu_addr, hram_data_r, cpu_data_w, cpu_do_write, hram_data_active);
 
-ppu ppu(clk, reset, cpu_addr, cpu_data_w, ppu_data_r, cpu_do_write, ppu_data_active);
+ppu ppu(
+    clk,
+    reset,
+
+    cpu_addr,
+    cpu_data_w,
+    ppu_data_r,
+    cpu_do_write,
+    ppu_data_active,
+
+    lcd_hblank,
+    lcd_vblank,
+    lcd_write,
+    lcd_col,
+    lcd_x,
+    lcd_y
+);
 
 cpu cpu(
     clk,
