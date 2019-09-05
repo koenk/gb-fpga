@@ -21,7 +21,7 @@ SIMTOP = main
 ICARUSTOP = icarus_top
 
 SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
-SIM_SOURCES = sim_main.cpp
+SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex
 ROM = build/test_mem.hex
@@ -50,16 +50,19 @@ VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP) -DROMFI
 IVERILOG_FLAGS = -DROMFILE="$(ROM)"
 
 VERILATOR_DIR = /usr/share/verilator/include
+CFLAGS := -Wall -Wextra -O2 -g
 CXXFLAGS := -I. -I$(SIMDIR) -I$(VERILATOR_DIR) -I$(VERILATOR_DIR)/vltstd \
 		   -DVL_PRINTF=printf -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TRACE=0 \
 		   -MMD -faligned-new -O2 -Wall -Wno-sign-compare -Wno-uninitialized \
 		   -Wno-unused-but-set-variable -Wno-unused-parameter \
 		   -Wno-unused-variable -Wno-shadow \
 		   $(shell pkg-config gtkmm-2.4 --cflags)
-LDLIBS = -lm -lstdc++ $(shell pkg-config gtkmm-2.4 --libs)
+LDLIBS = -lm -lstdc++ -lSDL2 $(shell pkg-config gtkmm-2.4 --libs)
 
 BIT_SOURCES := $(BITTOP).v $(SOURCES)
-SIM_OBJS := $(patsubst %.cpp,$(SIMDIR)/%.o,$(SIM_SOURCES))
+SIM_OBJS := $(patsubst %.c,$(SIMDIR)/%.o, \
+			$(patsubst %.cpp,$(SIMDIR)/%.o, \
+			 $(SIM_SOURCES)))
 
 
 ifdef DEBUG
@@ -71,6 +74,11 @@ endif
 ifdef DEBUG_CPU
 	VERILATOR_FLAGS += -DDEBUG_CPU
 	IVERILOG_FLAGS += -DDEBUG_CPU
+endif
+
+ifdef DEBUG_PPU
+	VERILATOR_FLAGS += -DDEBUG_PPU
+	IVERILOG_FLAGS += -DDEBUG_PPU
 endif
 
 # Verbosity control
@@ -115,6 +123,9 @@ $(SIMDIR)/V$(SIMTOP)__ALL.a: $(SIMTOP).v $(SOURCES) $(BOOTROM) $(ROM) | $(SIMDIR
 $(SIMDIR)/%.o: %.cpp $(SIMDIR)/V$(SIMTOP)__ALL.a
 	$(LOG) [CXX]
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
+$(SIMDIR)/%.o: %.c | $(SIMDIR)
+	$(LOG) [CC]
+	$(CC) $(CFLAGS) -c -o $@ $<
 $(SIMDIR)/verilated.o: $(VERILATOR_DIR)/verilated.cpp
 	$(LOG) [CXX]
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
