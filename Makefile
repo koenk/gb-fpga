@@ -21,7 +21,7 @@ SIMTOP = main
 ICARUSTOP = icarus_top
 
 SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
-BIT_SOURCES := $(BITTOP).v pll.v $(SOURCES)
+BIT_SOURCES := $(BITTOP).v tft.v pll.v $(SOURCES)
 SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex

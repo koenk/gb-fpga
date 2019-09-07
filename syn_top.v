@@ -1,5 +1,6 @@
 `include "pll.v"
 `include "main.v"
+`include "tft.v"
 
 module syn_top (
     input device_clk,
@@ -20,6 +21,10 @@ wire lcd_write;
 wire [1:0] lcd_col;
 wire [7:0] lcd_x, lcd_y;
 
+wire tft_initialized;
+wire tft_rst, tft_cs, tft_rs, tft_wr, tft_rd;
+wire [7:0] tft_data;
+
 wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
 wire [7:0] dbg_last_opcode;
 wire [5:0] dbg_stage;
@@ -28,10 +33,26 @@ wire dbg_halted;
 
 pll pll(device_clk, clk_16mhz, pll_locked);
 
+tft tft (
+    clk_16mhz,
+    reset,
+    tft_initialized,
+
+    tft_rst,
+    tft_cs,
+    tft_rs,
+    tft_wr,
+    tft_rd,
+    tft_data,
+
+    lcd_vblank,
+    lcd_write,
+    lcd_col
+);
 
 main main(
     clk_4mhz,
-    reset,
+    reset | ~tft_initialized,
 
     lcd_hblank,
     lcd_vblank,
@@ -69,9 +90,10 @@ assign clk_4mhz = clk_8mhz_cnt;
 
 /* I/O pins. */
 assign { P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } =
-    8'b0;
+    { tft_cs, tft_rs, tft_wr, tft_rd, tft_rst, 1'b0, 1'b0, 1'b0 };
 assign { P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10 } =
-    8'b0;
+    { tft_data[0], tft_data[1], tft_data[2], tft_data[3],
+      tft_data[4], tft_data[5], tft_data[6], tft_data[7] };
 
 /* Debug output. */
 assign {LED5, LED4, LED3, LED2, LED1} = dbg_pc[4:0];
