@@ -21,6 +21,7 @@ SIMTOP = main
 ICARUSTOP = icarus_top
 
 SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
+BIT_SOURCES := $(BITTOP).v pll.v $(SOURCES)
 SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex
@@ -59,7 +60,6 @@ CXXFLAGS := -I. -I$(SIMDIR) -I$(VERILATOR_DIR) -I$(VERILATOR_DIR)/vltstd \
 		   $(shell pkg-config gtkmm-2.4 --cflags)
 LDLIBS = -lm -lstdc++ -lSDL2 $(shell pkg-config gtkmm-2.4 --libs)
 
-BIT_SOURCES := $(BITTOP).v $(SOURCES)
 SIM_OBJS := $(patsubst %.c,$(SIMDIR)/%.o, \
 			$(patsubst %.cpp,$(SIMDIR)/%.o, \
 			 $(SIM_SOURCES)))
