@@ -24,7 +24,7 @@ SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
 SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex
-ROM = build/test_mem.hex
+ROM = build/bg.hex
 ROMDIR = roms
 
 DEV = up5k

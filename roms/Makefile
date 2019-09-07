@@ -1,4 +1,4 @@
-ROMS = halt
+ROMS = halt test_mem bg
 
 BUILDDIR = build
 
