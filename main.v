@@ -7,6 +7,7 @@
 
 module main (
     input clk,
+    input reset,
 
     output lcd_hblank,
     output lcd_vblank,
@@ -48,14 +49,6 @@ wire ppu_data_active;
 reg bootrom_enabled;
 
 reg interrupt_enable;
-
-reg reset;
-reg [7:0] reset_cnt;
-
-initial begin
-    reset = 1;
-    reset_cnt = 0;
-end
 
 /*
  * 0000-0100 BOOTROM (only during boot)
@@ -121,16 +114,6 @@ cpu cpu(
     dbg_last_opcode,
     dbg_stage
 );
-
-
-/*
- * Hold reset line high for first few cycles.
- */
-always @(posedge clk)
-    if (reset_cnt == 8'h0f)
-        reset <= 0;
-    else
-        reset_cnt <= reset_cnt + 1;
 
 /* Mux for cpu reading memory. */
 always @(*) begin

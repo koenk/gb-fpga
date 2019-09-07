@@ -12,12 +12,16 @@ module syn_top (
 wire pll_locked;
 wire clk_16mhz, clk_8mhz, clk_4mhz;
 
+wire reset;
+reg [3:0] reset_cnt;
+
 
 pll pll(device_clk, clk_16mhz, pll_locked);
 
 
 main main(
     clk_4mhz,
+    reset,
 
     lcd_hblank,
     lcd_vblank,
@@ -42,6 +46,13 @@ wire lcd_hblank, lcd_vblank;
 wire lcd_write;
 wire [1:0] lcd_col;
 wire [7:0] lcd_x, lcd_y;
+
+/* Hold reset line high on power-on for few clocks. */
+initial reset_cnt = 0;
+always @(posedge clk_4mhz)
+    if (pll_locked && !&reset_cnt)
+        reset_cnt <= reset_cnt + 1;
+assign reset = !&reset_cnt;
 
 /* Generate system clock signals. */
 reg clk_16mhz_cnt;

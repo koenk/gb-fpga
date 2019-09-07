@@ -48,6 +48,15 @@ int main(int argc, char **argv) {
     bool vblank_old = 0;
     bool paused = 0;
 
+    top->reset = 1;
+    top->clk = 0;
+    top->eval();
+    top->clk = 1;
+    top->eval();
+    top->reset = 0;
+    top->clk = 0;
+    top->eval();
+
     steady_clock::time_point last_poll = steady_clock::now();
     while (!Verilated::gotFinish()) {
         main_time++;
