@@ -15,6 +15,16 @@ wire clk_16mhz, clk_8mhz, clk_4mhz;
 wire reset;
 reg [3:0] reset_cnt;
 
+wire lcd_hblank, lcd_vblank;
+wire lcd_write;
+wire [1:0] lcd_col;
+wire [7:0] lcd_x, lcd_y;
+
+wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
+wire [7:0] dbg_last_opcode;
+wire [5:0] dbg_stage;
+reg dbg_instruction_retired;
+wire dbg_halted;
 
 pll pll(device_clk, clk_16mhz, pll_locked);
 
@@ -42,11 +52,6 @@ main main(
     dbg_stage
 );
 
-wire lcd_hblank, lcd_vblank;
-wire lcd_write;
-wire [1:0] lcd_col;
-wire [7:0] lcd_x, lcd_y;
-
 /* Hold reset line high on power-on for few clocks. */
 initial reset_cnt = 0;
 always @(posedge clk_4mhz)
@@ -61,21 +66,16 @@ always @(posedge clk_16mhz) clk_16mhz_cnt <= clk_16mhz_cnt + 1;
 always @(posedge clk_8mhz) clk_8mhz_cnt <= clk_8mhz_cnt + 1;
 assign clk_8mhz = clk_16mhz_cnt;
 assign clk_4mhz = clk_8mhz_cnt;
-/*
- * Debug output on pins.
- */
-wire [15:0] dbg_pc, dbg_sp, dbg_AF, dbg_BC, dbg_DE, dbg_HL;
-wire [7:0] dbg_last_opcode;
-wire [5:0] dbg_stage;
-reg dbg_instruction_retired;
-wire dbg_halted;
 
+/* I/O pins. */
+assign { P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } =
+    8'b0;
+assign { P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10 } =
+    8'b0;
+
+/* Debug output. */
 assign {LED5, LED4, LED3, LED2, LED1} = dbg_pc[4:0];
 assign LEDR_N = ~dbg_halted;
-assign LEDG_N = clk_4mhz;
-
-assign {P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } =
-    {2'b0, clk_4mhz, lcd_write, lcd_hblank, lcd_vblank, lcd_col};
-assign {P1B1, P1B2, P1B3, P1B4, P1B7, P1B8, P1B9, P1B10 } = dbg_pc[7:0];
+assign LEDG_N = reset;
 
 endmodule
