@@ -179,8 +179,6 @@ reg [3:0] wb_flags, wb_flags_mask, wb_flags_override_set, wb_flags_override_rese
 reg [1:0] wb_HL_op, wb_SP_op;
 reg wb_intm_disable, wb_intm_enable;
 
-localparam MEMBUS_FETCH=0, MEMBUS_OPER=1, MEMBUS_LOAD=2, MEMBUS_STORE=3;
-
 assign cpu_is_halted = halted;
 
 assign dbg_pc = pc;
@@ -668,7 +666,7 @@ function automatic [15:0] operand_mux(input [4:0] operand, input [15:0] const_va
         DE_REG_HL: operand_mux = {reg_H, reg_L};
         DE_HLMEM:  operand_mux = {reg_H, reg_L}; // Used as addr, overwritten.
         DE_IO_C:   operand_mux = {8'hff, reg_C};
-        DE_IO_IMM: operand_mux = 16'hff00; // Lower by overwritten by imm
+        DE_IO_IMM: operand_mux = 16'hff00; // Lower byte overwritten by imm
 
         default: begin
             operand_mux = 'hffff;
