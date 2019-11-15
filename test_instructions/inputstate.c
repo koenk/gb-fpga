@@ -77,6 +77,15 @@ static int next_val16(bool enabled, u16 *val) {
     return idx != len - 1;
 }
 
+static int next_bool(bool enabled, bool *val) {
+    if (!enabled)
+        return 0;
+
+    *val = !*val;
+
+    return *val == 0;
+}
+
 static int next_oper(bool enabled, int lim, int *val) {
     if (!enabled)
         return 0;
@@ -99,7 +108,8 @@ static int next_imm(int imm_size, u16 *val) {
 
 int next_state(struct test_inst *inst, struct op_state *op_state,
         struct state *state) {
-    return next_flags(inst->test_F, &state->reg8.F) ? 0 :
+    return next_bool(inst->test_IME, &state->interrupts_master_enabled) ? 0 :
+           next_flags(inst->test_F, &state->reg8.F) ? 0 :
            next_val8(&state->reg8.A) ? 0 :
            next_val16(inst->test_BC, &state->reg16.BC) ? 0 :
            next_val16(inst->test_DE, &state->reg16.DE) ? 0 :

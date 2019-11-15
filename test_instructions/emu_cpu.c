@@ -123,7 +123,7 @@ static void cpu_init_luts(struct gb_state *s) {
 /* Resets the CPU state (registers and such) to the state at bootup. */
 void ecpu_reset(struct state *state) {
     emu_state.halted = 0;
-    emu_state.interrupts_master_enabled = 0;
+    emu_state.interrupts_master_enabled = state->interrupts_master_enabled;
     emu_state.pc = state->PC;
     emu_state.sp = state->SP;
     emu_state.reg16.AF = state->reg16.AF;
@@ -142,6 +142,7 @@ void ecpu_get_state(struct state *state) {
     state->reg16.DE = emu_state.reg16.DE;
     state->reg16.HL = emu_state.reg16.HL;
     state->halted = emu_state.halted;
+    state->interrupts_master_enabled = emu_state.interrupts_master_enabled;
     state->num_mem_accesses = num_mem_accesses;
     memcpy(state->mem_accesses, mem_accesses, sizeof(mem_accesses));
 }

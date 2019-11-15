@@ -27,7 +27,7 @@ struct test_inst {
     int bit_bitpos;
 
     /* Whether to vary the specific register during tests. */
-    bool test_F, test_BC, test_DE, test_HL, test_SP;
+    bool test_F, test_BC, test_DE, test_HL, test_SP, test_IME;
 };
 
 
@@ -53,6 +53,7 @@ struct state {
     u16 PC;
     bool halted;
     bool error;
+    bool interrupts_master_enabled;
 
     int num_mem_accesses;
     struct mem_access mem_accesses[16];

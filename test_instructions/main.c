@@ -20,12 +20,13 @@ bool tested_op_cb[256] = { 0 };
 
 
 void dump_state(struct state *state) {
-    printf(" PC   SP   AF   BC   DE   HL  ZNHC hlt\n"
-            "%04x %04x %04x %04x %04x %04x %d%d%d%d  %d\n",
+    printf(" PC   SP   AF   BC   DE   HL  ZNHC hlt IME\n"
+            "%04x %04x %04x %04x %04x %04x %d%d%d%d  %d   %d\n",
             state->PC, state->SP, state->reg16.AF, state->reg16.BC,
             state->reg16.DE, state->reg16.HL,
             BIT(state->reg16.AF, 7), BIT(state->reg16.AF, 6),
-            BIT(state->reg16.AF, 5), BIT(state->reg16.AF, 4), state->halted);
+            BIT(state->reg16.AF, 5), BIT(state->reg16.AF, 4), state->halted,
+            state->interrupts_master_enabled);
 
     for (int i = 0; i < state->num_mem_accesses; i++)
         printf("  Mem %s: addr=%04x val=%02x\n",
@@ -68,6 +69,7 @@ int states_eq(struct state *s1, struct state *s2) {
            s1->PC == s2->PC &&
            s1->SP == s2->SP &&
            s1->halted == s2->halted &&
+           s1->interrupts_master_enabled == s2->interrupts_master_enabled &&
            s1->num_mem_accesses == s2->num_mem_accesses &&
            memcmp(s1->mem_accesses, s2->mem_accesses,
                   s1->num_mem_accesses * sizeof(struct mem_access)) == 0;

@@ -114,6 +114,9 @@ localparam HL_OP_NONE = 0,
 reg [5:0] stage, next_stage;
 
 reg halted;
+
+reg interrupts_master_enabled;
+
 reg [15:0] pc, sp;
 reg Z, N, H, C;
 reg [7:0] reg_A, reg_B, reg_C, reg_D, reg_E, reg_H, reg_L;
@@ -138,6 +141,7 @@ reg decode_store_mem8, decode_store_mem16;
 reg [4:0] decode_store_addr_oper, decode_store_data_oper;
 reg [15:0] decode_store_addr_constval, decode_store_data_constval;
 reg decode_cb_prefix;
+reg decode_intm_disable, decode_intm_enable;
 
 reg [7:0] decode_cb_opcode;
 reg [3:0] decode_cb_alu_op;
@@ -173,6 +177,7 @@ reg [15:0] wb_data;
 reg [15:0] wb_pc;
 reg [3:0] wb_flags, wb_flags_mask, wb_flags_override_set, wb_flags_override_reset;
 reg [1:0] wb_HL_op, wb_SP_op;
+reg wb_intm_disable, wb_intm_enable;
 
 localparam MEMBUS_FETCH=0, MEMBUS_OPER=1, MEMBUS_LOAD=2, MEMBUS_STORE=3;
 
@@ -310,6 +315,8 @@ always @(*) begin
     decode_store_data_oper = DE_CONST;
     decode_store_addr_constval = 16'hffff;
     decode_store_data_constval = 16'hffff;
+    decode_intm_disable = 0;
+    decode_intm_enable = 0;
 
     decode_opcode = mem_data_read;
     opc = decode_opcode;
@@ -318,6 +325,11 @@ always @(*) begin
         ;
     end else if (opc == 'h76) begin                 // HALT
         decode_halt = 1;
+
+    end else if (opc == 'hf3) begin                 // DI
+        decode_intm_disable = 1;
+    end else if (opc == 'hfb) begin                 // EI
+        decode_intm_enable = 1;
 
     end else if ((opc & 'hcf) == 'h01) begin        // LD r16, imm16
         decode_dest = decode_operand_reg16(opc[5:4], 0);
@@ -731,6 +743,7 @@ always @(posedge clk)
         {Z, N, H, C} <= 4'h0;
         mem_do_write <= 0;
         mem_addr <= 0;
+        interrupts_master_enabled <= 1;
     end else begin
         case (next_stage)
         FETCH: begin
@@ -802,6 +815,8 @@ always @(posedge clk)
             wb_flags_override_reset <= decode_flags_override_reset;
             wb_HL_op <= decode_HL_op;
             wb_SP_op <= decode_SP_op;
+            wb_intm_disable <= decode_intm_disable;
+            wb_intm_enable <= decode_intm_enable;
         end
 
         DECODE_CB1: begin
@@ -953,6 +968,10 @@ always @(posedge clk)
                              (wb_flags & wb_flags_mask))
                             & ~wb_flags_override_reset
                             | wb_flags_override_set;
+
+            interrupts_master_enabled <= wb_intm_disable ? 0 :
+                                         wb_intm_enable  ? 1 :
+                                         interrupts_master_enabled;
 
             case (wb_dest)
                 DE_SP:     sp <= wb_data;

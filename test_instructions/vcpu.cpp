@@ -21,6 +21,7 @@ void vcpu_reset(struct state *state) {
 #define S(name) vcpu->cpu__DOT__ ## name
     vcpu->clk = 0;
     S(halted) = 0;
+    S(interrupts_master_enabled) = state->interrupts_master_enabled;
     S(pc) = state->PC;
     S(sp) = state->SP;
     S(reg_A) = state->reg8.A;
@@ -46,6 +47,7 @@ void vcpu_get_state(struct state *state) {
     state->reg16.DE = vcpu->dbg_DE;
     state->reg16.HL = vcpu->dbg_HL;
     state->halted = vcpu->cpu_is_halted;
+    state->interrupts_master_enabled = vcpu->cpu__DOT__interrupts_master_enabled;
     state->num_mem_accesses = num_mem_accesses;
     memcpy(state->mem_accesses, mem_accesses, sizeof(mem_accesses));
 }
