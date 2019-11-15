@@ -422,6 +422,12 @@ always @(*) begin
         decode_oper1 = DE_SP;
         decode_dest = decode_cond ? DE_PC : DE_NONE;
         decode_SP_op = decode_cond ? SP_OP_INC2 : SP_OP_NONE;
+    end else if (opc == 'hd9) begin                 // RETI
+        decode_load_mem16 = 1;
+        decode_oper1 = DE_SP;
+        decode_dest = DE_PC;
+        decode_SP_op = SP_OP_INC2;
+        decode_intm_enable = 1;
 
     end else if ((opc & 'hc7) == 'hc7) begin        // RST vec
         decode_store_mem16 = 1;
