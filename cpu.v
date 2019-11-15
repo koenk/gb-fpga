@@ -411,6 +411,15 @@ always @(*) begin
         decode_dest = decode_cond ? DE_PC : DE_NONE;
         decode_SP_op = decode_cond ? SP_OP_INC2 : SP_OP_NONE;
 
+    end else if ((opc & 'hc7) == 'hc7) begin        // RST vec
+        decode_store_mem16 = 1;
+        decode_store_addr_constval = sp - 2;
+        decode_store_data_constval = pc + 1;
+        decode_SP_op = SP_OP_DEC2;
+        decode_oper1 = DE_CONST;
+        decode_oper1_constval = {10'h0, opc[5:3], 3'b000};
+        decode_dest = DE_PC;
+
     end else if (opc == 'hc3) begin                 // JP imm16
         decode_oper1 = DE_IMM16;
         decode_dest = DE_PC;
