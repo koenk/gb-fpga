@@ -9,7 +9,7 @@ module cpu (
 
     input [4:0] interrupts_enabled,
     input [4:0] interrupts_request,
-    output [4:0] interrupts_ack,
+    output reg [4:0] interrupts_ack,
 
     output cpu_is_halted,
 
