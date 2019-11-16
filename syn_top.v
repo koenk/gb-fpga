@@ -16,6 +16,9 @@ wire clk_16mhz, clk_8mhz, clk_4mhz;
 wire reset;
 reg [3:0] reset_cnt;
 
+wire btn_a, btn_b, btn_start, btn_select;
+wire btn_up, btn_down, btn_left, btn_right;
+
 wire lcd_hblank, lcd_vblank;
 wire lcd_write;
 wire [1:0] lcd_col;
@@ -54,6 +57,15 @@ main main(
     clk_4mhz,
     reset | ~tft_initialized,
 
+    btn_a,
+    btn_b,
+    btn_start,
+    btn_select,
+    btn_up,
+    btn_down,
+    btn_left,
+    btn_right,
+
     lcd_hblank,
     lcd_vblank,
     lcd_write,
@@ -87,6 +99,15 @@ always @(posedge clk_16mhz) clk_16mhz_cnt <= clk_16mhz_cnt + 1;
 always @(posedge clk_8mhz) clk_8mhz_cnt <= clk_8mhz_cnt + 1;
 assign clk_8mhz = clk_16mhz_cnt;
 assign clk_4mhz = clk_8mhz_cnt;
+
+assign btn_a = 0;
+assign btn_b = 0;
+assign btn_start = 0;
+assign btn_select = 0;
+assign btn_up = 0;
+assign btn_down = 0;
+assign btn_left = 0;
+assign btn_right = 0;
 
 /* I/O pins. */
 assign { P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10 } =

@@ -9,6 +9,15 @@ module main (
     input clk,
     input reset,
 
+    input joy_btn_a,
+    input joy_btn_b,
+    input joy_btn_start,
+    input joy_btn_select,
+    input joy_btn_up,
+    input joy_btn_down,
+    input joy_btn_left,
+    input joy_btn_right,
+
     output lcd_hblank,
     output lcd_vblank,
     output lcd_write,
@@ -57,6 +66,10 @@ wire intreq_joypad;
 reg [7:0] interrupts_enabled;
 reg [4:0] interrupts_request;
 wire [4:0] interrupts_ack;
+
+reg [1:0] joypad_select;
+wire [3:0] joypad_buttons;
+wire [3:0] joypad_row1, joypad_row2;
 
 /*
  * 0000-0100 BOOTROM (only during boot)
@@ -134,6 +147,11 @@ assign intreq_timer = 0;
 assign intreq_serial = 0;
 assign intreq_joypad = 0;
 
+// TODO this should be implemented externally (on PCB?)
+assign joypad_row1 = {joy_btn_start, joy_btn_select, joy_btn_a, joy_btn_b};
+assign joypad_row2 = {joy_btn_down, joy_btn_up, joy_btn_left, joy_btn_right};
+assign joypad_buttons = ~(({4{joypad_select[0]}} & joypad_row1) |
+                          ({4{joypad_select[1]}} & joypad_row2));
 
 /* Mux for cpu reading memory. */
 always @(*) begin
@@ -142,6 +160,8 @@ always @(*) begin
     else if (wram_data_active) cpu_data_r = wram_data_r;
     else if (hram_data_active) cpu_data_r = hram_data_r;
     else if (ppu_data_active) cpu_data_r = ppu_data_r;
+    else if (cpu_addr == 16'hFF00) // Joypad (P1)
+        cpu_data_r = {2'b11, joypad_select, joypad_buttons};
     else if (cpu_addr == 16'hFF0F) // Interrupt Flag (IF)
         cpu_data_r = {3'b111, interrupts_request};
     else if (cpu_addr == 16'hFFFF) // Interrupt Enabled (IE)
@@ -172,7 +192,9 @@ always @(posedge clk) begin
         if (interrupts_ack[4])  interrupts_request[4] <= 0;
 
         if (cpu_do_write) begin
-            if (cpu_addr == 'hFFFE) // Disable (unmap) bootrom
+            if (cpu_addr == 'hFF00) // Joypad (P1)
+                joypad_select <= cpu_data_w[5:4];
+            else if (cpu_addr == 'hFFFE) // Disable (unmap) bootrom
                 bootrom_enabled <= 0;
             else if (cpu_addr == 'hFF0F) // Interrupt Flag (IF)
                 interrupts_request <= cpu_data_w[4:0];

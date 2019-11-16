@@ -77,6 +77,15 @@ int main(int argc, char **argv) {
         if (paused)
             continue;
 
+        top->joy_btn_a = input_state.button_a;
+        top->joy_btn_b = input_state.button_b;
+        top->joy_btn_start = input_state.button_start;
+        top->joy_btn_select = input_state.button_select;
+        top->joy_btn_up = input_state.button_up;
+        top->joy_btn_down = input_state.button_down;
+        top->joy_btn_left = input_state.button_left;
+        top->joy_btn_right = input_state.button_right;
+
         top->clk = !top->clk;
 
         top->eval();

@@ -88,6 +88,28 @@ int gui_input_poll(struct gui_input *input) {
             case SDLK_p:
                 input->special_pause = 1;
                 break;
+
+            case SDLK_RETURN:    input->button_start = 1; break;
+            case SDLK_BACKSPACE: input->button_select = 1; break;
+            case SDLK_x:         input->button_b = 1; break;
+            case SDLK_z:         input->button_a = 1; break;
+            case SDLK_DOWN:      input->button_down = 1; break;
+            case SDLK_UP:        input->button_up = 1; break;
+            case SDLK_LEFT:      input->button_left = 1; break;
+            case SDLK_RIGHT:     input->button_right = 1; break;
+            }
+            break;
+
+        case SDL_KEYUP:
+            switch (event.key.keysym.sym) {
+            case SDLK_RETURN:    input->button_start = 0; break;
+            case SDLK_BACKSPACE: input->button_select = 0; break;
+            case SDLK_x:         input->button_b = 0; break;
+            case SDLK_z:         input->button_a = 0; break;
+            case SDLK_DOWN:      input->button_down = 0; break;
+            case SDLK_UP:        input->button_up = 0; break;
+            case SDLK_LEFT:      input->button_left = 0; break;
+            case SDLK_RIGHT:     input->button_right = 0; break;
             }
             break;
 
