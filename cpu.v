@@ -82,7 +82,8 @@ localparam ALU_NOP  = 0,
            ALU_SLA  = 12,
            ALU_SRA  = 13,
            ALU_SWAP = 14,
-           ALU_SRL  = 15;
+           ALU_SRL  = 15,
+           ALU_DAA  = 16;
 
 /* Possible parameters during decoding (both source during decode/execute, and
  * destination during writeback). */
@@ -132,7 +133,7 @@ wire [3:0] reg_Fh;
 reg decode_halt;
 reg decode_instruction_not_implemented;
 reg decode_16bit;
-reg [3:0] decode_alu_op;
+reg [4:0] decode_alu_op;
 reg [4:0] decode_oper1, decode_oper2;
 reg [15:0] decode_oper1_constval, decode_oper2_constval;
 reg [1:0] decode_instr_length;
@@ -151,7 +152,7 @@ reg decode_intm_disable, decode_intm_enable;
 reg [4:0] decode_intack;
 
 reg [7:0] decode_cb_opcode;
-reg [3:0] decode_cb_alu_op;
+reg [4:0] decode_cb_alu_op;
 reg [4:0] decode_cb_oper1;
 reg [4:0] decode_cb_oper2;
 reg [7:0] decode_cb_oper2_constval;
@@ -173,11 +174,12 @@ reg [15:0] store_mem_addr, store_mem_data;
 reg store_mem_execout;
 
 reg alu_16bit;
-reg [3:0] alu_op;
+reg [4:0] alu_op;
 reg [15:0] exec_oper1, exec_oper2;
 reg [16:0] alu_out; // 16 bit + 1 bit for capturing carry
 wire alu_out_Z, alu_out_N, alu_out_H;
 reg alu_out_C;
+wire [7:0] alu_daa_add;
 
 reg [4:0] wb_dest;
 reg [15:0] wb_data;
@@ -506,6 +508,12 @@ always @(*) begin
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
         decode_flags_override_reset = 4'b1000;
+    end else if (opc == 'h27) begin                 // DAA
+        decode_alu_op = ALU_DAA;
+        decode_oper1 = DE_REG_A;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1011;
+        decode_flags_override_reset = 4'b0010;
     end else if (opc == 'h2f) begin                 // CPL
         decode_alu_op = ALU_XOR;
         decode_oper1 = DE_REG_A;
@@ -743,8 +751,12 @@ always @(*)
         ALU_SRA:  begin alu_out = {9'b0, exec_oper1[7], exec_oper1[7:1]}; end
         ALU_SWAP: begin alu_out = {9'b0, exec_oper1[3:0], exec_oper1[7:4]}; end
         ALU_SRL:  begin alu_out = {9'b0, 1'b0, exec_oper1[7:1]}; end
+        ALU_DAA:  begin alu_out = {9'b0, exec_oper1[7:0] + (N ? -alu_daa_add : alu_daa_add)}; end
         default:  alu_out = 17'hFFFF;
     endcase
+
+assign alu_daa_add = ((H || (!N && (exec_oper1 & 'h0f) > 'h09)) ? 8'h06 : 0) |
+                     ((C || (!N && (exec_oper1 & 'hff) > 'h99)) ? 8'h60 : 0);
 
 assign alu_out_Z = alu_16bit ? (alu_out[15:0] == 16'h0000) :
                                (alu_out[7:0] == 8'h00);
@@ -765,6 +777,8 @@ always @(*)
         ALU_RRC, ALU_RR,
         ALU_SRA, ALU_SRL:
             alu_out_C = exec_oper1[0];
+        ALU_DAA:
+            alu_out_C = C || (!N && (exec_oper1 & 'hff) > 'h99);
         default:
             alu_out_C = 0;
     endcase
