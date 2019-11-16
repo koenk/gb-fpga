@@ -494,6 +494,12 @@ always @(*) begin
         decode_cond = decode_operand_cond(opc[4:3]);
         decode_dest = decode_cond ? DE_PC : DE_NONE;
 
+    end else if (opc == 'h07) begin                 // RLCA
+        decode_alu_op = ALU_RLC;
+        decode_oper1 = DE_REG_A;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+        decode_flags_override_reset = 4'b1000;
     end else if (opc == 'h17) begin                 // RLA
         decode_alu_op = ALU_RL;
         decode_oper1 = DE_REG_A;
