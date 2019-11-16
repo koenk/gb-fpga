@@ -439,6 +439,9 @@ always @(*) begin
     end else if (opc == 'hc3) begin                 // JP imm16
         decode_oper1 = DE_IMM16;
         decode_dest = DE_PC;
+    end else if (opc == 'he9) begin                 // JP HL
+        decode_oper1 = DE_REG_HL;
+        decode_dest = DE_PC;
     end else if (opc == 'h18) begin                 // JR off8
         decode_alu_op = ALU_ADD;
         decode_oper1 = DE_IMM8;
