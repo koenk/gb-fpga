@@ -8,6 +8,9 @@ module ppu (
     input mem_do_write,
     output mem_data_active,
 
+    output reg intreq_vblank,
+    output reg intreq_stat,
+
     output reg lcd_hblank,
     output reg lcd_vblank,
     output reg lcd_write,
@@ -322,6 +325,17 @@ always @(posedge clk) begin
             pixfifo1 <= {pixfifo1[14:0], 1'b0};
             pixfifo2 <= {pixfifo2[14:0], 1'b0};
         end
+    end
+end
+
+/* Request interrupts on vblank and LY=LYC */
+always @(posedge clk) begin
+    intreq_vblank <= 0;
+    intreq_stat <= 0;
+
+    if (!reset) begin
+        if (next_y != cur_y && next_y == PIX_Y)
+            intreq_vblank <= 1;
     end
 end
 

@@ -48,7 +48,15 @@ wire ppu_data_active;
 
 reg bootrom_enabled;
 
-reg interrupt_enable;
+wire intreq_lcd_vblank;
+wire intreq_lcd_stat;
+wire intreq_timer;
+wire intreq_serial;
+wire intreq_joypad;
+
+reg [7:0] interrupts_enabled;
+reg [4:0] interrupts_request;
+wire [4:0] interrupts_ack;
 
 /*
  * 0000-0100 BOOTROM (only during boot)
@@ -85,6 +93,9 @@ ppu ppu(
     cpu_do_write,
     ppu_data_active,
 
+    intreq_lcd_vblank,
+    intreq_lcd_stat,
+
     lcd_hblank,
     lcd_vblank,
     lcd_write,
@@ -102,6 +113,10 @@ cpu cpu(
     cpu_data_r,
     cpu_do_write,
 
+    interrupts_enabled[4:0],
+    interrupts_request,
+    interrupts_ack,
+
     dbg_halted,
 
     dbg_pc,
@@ -115,6 +130,11 @@ cpu cpu(
     dbg_stage
 );
 
+assign intreq_timer = 0;
+assign intreq_serial = 0;
+assign intreq_joypad = 0;
+
+
 /* Mux for cpu reading memory. */
 always @(*) begin
     if (bootrom_data_active) cpu_data_r = bootrom_data_r;
@@ -122,8 +142,10 @@ always @(*) begin
     else if (wram_data_active) cpu_data_r = wram_data_r;
     else if (hram_data_active) cpu_data_r = hram_data_r;
     else if (ppu_data_active) cpu_data_r = ppu_data_r;
-    else if (cpu_addr == 16'hFFFF)
-        cpu_data_r = {7'h0, interrupt_enable};
+    else if (cpu_addr == 16'hFF0F) // Interrupt Flag (IF)
+        cpu_data_r = {3'b111, interrupts_request};
+    else if (cpu_addr == 16'hFFFF) // Interrupt Enabled (IE)
+        cpu_data_r = interrupts_enabled;
     else
         cpu_data_r = 8'hff;
 end
@@ -131,12 +153,33 @@ end
 always @(posedge clk) begin
     if (reset) begin
         bootrom_enabled <= 1;
-        interrupt_enable <= 0;
+        interrupts_enabled <= 8'h0;
+        interrupts_request <= 5'h0;
     end else begin
+
+        /* Process interrupt requests (from peripherals) and acknowlegdements
+         * (from CPU). Can be overwritten in same cycle by write to FF0F. */
+        if (intreq_lcd_vblank)  interrupts_request[0] <= 1;
+        if (intreq_lcd_stat)    interrupts_request[1] <= 1;
+        if (intreq_timer)       interrupts_request[2] <= 1;
+        if (intreq_serial)      interrupts_request[3] <= 1;
+        if (intreq_joypad)      interrupts_request[4] <= 1;
+
+        if (interrupts_ack[0])  interrupts_request[0] <= 0;
+        if (interrupts_ack[1])  interrupts_request[1] <= 0;
+        if (interrupts_ack[2])  interrupts_request[2] <= 0;
+        if (interrupts_ack[3])  interrupts_request[3] <= 0;
+        if (interrupts_ack[4])  interrupts_request[4] <= 0;
+
         if (cpu_do_write) begin
-            if (cpu_addr == 'hFFFF)
-                interrupt_enable <= cpu_data_w[0];
+            if (cpu_addr == 'hFFFE) // Disable (unmap) bootrom
+                bootrom_enabled <= 0;
+            else if (cpu_addr == 'hFF0F) // Interrupt Flag (IF)
+                interrupts_request <= cpu_data_w[4:0];
+            else if (cpu_addr == 'hFFFF) // Interrupt Enabled (IE)
+                interrupts_enabled <= cpu_data_w;
         end
+
    end
 end
 

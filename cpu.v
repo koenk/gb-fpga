@@ -7,6 +7,10 @@ module cpu (
     input [7:0] mem_data_read,
     output reg mem_do_write,
 
+    input [4:0] interrupts_enabled,
+    input [4:0] interrupts_request,
+    output [4:0] interrupts_ack,
+
     output cpu_is_halted,
 
     output [15:0] dbg_pc,
@@ -59,7 +63,8 @@ localparam RESET       = 0,
            STORE_MEM6  = 30,
            STORE_MEM7  = 31,
            STORE_MEM8  = 32,
-           WRITEBACK   = 33;
+           WRITEBACK   = 33,
+           INTR        = 34;
 
 /* Operations the ALU can perform. */
 localparam ALU_NOP  = 0,
@@ -116,6 +121,7 @@ reg [5:0] stage, next_stage;
 reg halted;
 
 reg interrupts_master_enabled;
+wire has_pending_intr;
 
 reg [15:0] pc, sp;
 reg Z, N, H, C;
@@ -142,6 +148,7 @@ reg [4:0] decode_store_addr_oper, decode_store_data_oper;
 reg [15:0] decode_store_addr_constval, decode_store_data_constval;
 reg decode_cb_prefix;
 reg decode_intm_disable, decode_intm_enable;
+reg [4:0] decode_intack;
 
 reg [7:0] decode_cb_opcode;
 reg [3:0] decode_cb_alu_op;
@@ -178,6 +185,7 @@ reg [15:0] wb_pc;
 reg [3:0] wb_flags, wb_flags_mask, wb_flags_override_set, wb_flags_override_reset;
 reg [1:0] wb_HL_op, wb_SP_op;
 reg wb_intm_disable, wb_intm_enable;
+reg [4:0] wb_intack;
 
 assign cpu_is_halted = halted;
 
@@ -192,6 +200,9 @@ assign dbg_stage = stage;
 
 assign reg_Fh = {Z, N, H, C};
 assign reg_F = {reg_Fh, 4'h0};
+
+assign has_pending_intr = interrupts_master_enabled &
+    |(interrupts_request & interrupts_enabled);
 
 
 function [15:0] sext(input [7:0] val);
@@ -208,7 +219,8 @@ always @(*)
     else
         case (stage)
             RESET:       next_stage = FETCH;
-            HALTED:      next_stage = halted ? HALTED : FETCH;
+            HALTED:      next_stage = has_pending_intr ? FETCH :
+                                      halted ? HALTED : FETCH;
             FETCH:       next_stage = DECODE;
             DECODE:      next_stage = decode_cb_prefix ? DECODE_CB1 :
                                       decode_has_imm_operand ? DECODE_IMM1 :
@@ -244,7 +256,8 @@ always @(*)
             STORE_MEM6:  next_stage = STORE_MEM7;
             STORE_MEM7:  next_stage = STORE_MEM8;
             STORE_MEM8:  next_stage = WRITEBACK;
-            WRITEBACK:   next_stage = halted ? HALTED : FETCH;
+            WRITEBACK:   next_stage = has_pending_intr ? FETCH :
+                                      halted ? HALTED : FETCH;
             // TODO add 4 cycles for jumps (except LD PC, HL)
             default:     next_stage = HALTED;
         endcase
@@ -288,6 +301,17 @@ function decode_operand_cond(input [1:0] operand_bits);
     endcase
 endfunction
 
+function [2:0] get_pending_intr();
+    casez (interrupts_request & interrupts_enabled)
+        5'b????1: get_pending_intr = 0;
+        5'b???10: get_pending_intr = 1;
+        5'b??100: get_pending_intr = 2;
+        5'b?1000: get_pending_intr = 3;
+        5'b10000: get_pending_intr = 4;
+        default: get_pending_intr = 0;
+    endcase
+endfunction
+
 /* Instruction decoder (for non-cb prefix instructions). */
 always @(*) begin
     decode_cb_prefix = 0;
@@ -315,11 +339,22 @@ always @(*) begin
     decode_store_data_constval = 16'hffff;
     decode_intm_disable = 0;
     decode_intm_enable = 0;
+    decode_intack = 0;
 
     decode_opcode = mem_data_read;
     opc = decode_opcode;
 
-    if (opc == 'h00) begin                          // NOP
+    if (has_pending_intr) begin
+        decode_store_mem16 = 1;
+        decode_store_addr_constval = sp - 2;
+        decode_store_data_constval = pc;
+        decode_SP_op = SP_OP_DEC2;
+        decode_oper1 = DE_CONST;
+        decode_oper1_constval = {8'h0, 2'b01, get_pending_intr(), 3'b0};
+        decode_dest = DE_PC;
+        decode_intack = 5'b1 << get_pending_intr();
+
+    end else if (opc == 'h00) begin                 // NOP
         ;
     end else if (opc == 'h76) begin                 // HALT
         decode_halt = 1;
@@ -731,7 +766,9 @@ always @(*)
 /*
  * Datapath between stages (propagate on clock).
  */
-always @(posedge clk)
+always @(posedge clk) begin
+    interrupts_ack <= 0;
+
     if (reset) begin
         `ifdef DEBUG_CPU
             $display("[CPU] Reset");
@@ -750,7 +787,7 @@ always @(posedge clk)
         {Z, N, H, C} <= 4'h0;
         mem_do_write <= 0;
         mem_addr <= 0;
-        interrupts_master_enabled <= 1;
+        interrupts_master_enabled <= 0;
     end else begin
         case (next_stage)
         FETCH: begin
@@ -824,6 +861,7 @@ always @(posedge clk)
             wb_SP_op <= decode_SP_op;
             wb_intm_disable <= decode_intm_disable;
             wb_intm_enable <= decode_intm_enable;
+            wb_intack <= decode_intack;
         end
 
         DECODE_CB1: begin
@@ -980,6 +1018,8 @@ always @(posedge clk)
                                          wb_intm_enable  ? 1 :
                                          interrupts_master_enabled;
 
+            interrupts_ack <= wb_intack;
+
             case (wb_dest)
                 DE_SP:     sp <= wb_data;
                 DE_REG_A:  reg_A <= wb_data[7:0];
@@ -1010,4 +1050,5 @@ always @(posedge clk)
 
         stage <= next_stage;
     end
+end
 endmodule
