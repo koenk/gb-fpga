@@ -194,7 +194,7 @@ always @(posedge clk) begin
         if (cpu_do_write) begin
             if (cpu_addr == 'hFF00) // Joypad (P1)
                 joypad_select <= cpu_data_w[5:4];
-            else if (cpu_addr == 'hFFFE) // Disable (unmap) bootrom
+            else if (cpu_addr == 'hFF50) // Disable (unmap) bootrom
                 bootrom_enabled <= 0;
             else if (cpu_addr == 'hFF0F) // Interrupt Flag (IF)
                 interrupts_request <= cpu_data_w[4:0];
