@@ -366,6 +366,13 @@ always @(*) begin
     end else if (opc == 'hfb) begin                 // EI
         decode_intm_enable = 1;
 
+    end else if (opc == 'h37) begin                 // SCF
+        decode_flags_override_set   = 4'b0001;
+        decode_flags_override_reset = 4'b0110;
+    end else if (opc == 'h3f) begin                 // CCF
+        decode_flags_override_set   = C ? 4'b0000 : 4'b0001;
+        decode_flags_override_reset = C ? 4'b0111 : 4'b0110;
+
     end else if ((opc & 'hcf) == 'h01) begin        // LD r16, imm16
         decode_dest = decode_operand_reg16(opc[5:4], 0);
         decode_oper1 = DE_IMM16;
@@ -377,6 +384,9 @@ always @(*) begin
         decode_oper1 = decode_operand_reg8(opc[2:0]);
         decode_dest = decode_operand_reg8(opc[5:3]);
 
+    end else if (opc == 'hf9) begin                 // LD SP, HL
+        decode_oper1 = DE_REG_HL;
+        decode_dest = DE_SP;
 
     end else if ((opc & 'hef) == 'h0a) begin        // LD A, (r16)
         decode_load_mem8 = 1;
@@ -395,6 +405,10 @@ always @(*) begin
     end else if (opc == 'hf0) begin                 // LD A, ($FF00+imm8)
         decode_load_mem8 = 1;
         decode_oper1 = DE_IO_IMM;
+        decode_dest = DE_REG_A;
+    end else if (opc == 'hf2) begin                 // LD A, ($FF00+C)
+        decode_load_mem8 = 1;
+        decode_oper1 = DE_IO_C;
         decode_dest = DE_REG_A;
     end else if (opc == 'hfa) begin                 // LD A, (imm16)
         decode_load_mem8 = 1;
@@ -428,6 +442,11 @@ always @(*) begin
         decode_store_addr_oper = DE_IO_IMM;
         decode_store_data_oper = DE_REG_A;
 
+    end else if (opc == 'h08) begin                 // LD (imm16), SP
+        decode_store_mem16 = 1;
+        decode_store_addr_oper = DE_IMM16;
+        decode_store_data_oper = DE_SP;
+
     end else if ((opc & 'hcf) == 'hc5) begin        // PUSH r16
         decode_store_mem16 = 1;
         decode_store_addr_constval = sp - 2;
@@ -446,6 +465,14 @@ always @(*) begin
         decode_SP_op = SP_OP_DEC2;
         decode_oper1 = DE_IMM16;
         decode_dest = DE_PC;
+    end else if ((opc & 'he7) == 'hc4) begin        // CALL cc, imm16
+        decode_cond = decode_operand_cond(opc[4:3]);
+        decode_store_mem16 = decode_cond;
+        decode_store_addr_constval = sp - 2;
+        decode_store_data_constval = pc + 3;
+        decode_SP_op = decode_cond ? SP_OP_DEC2 : SP_OP_NONE;
+        decode_oper1 = DE_IMM16;
+        decode_dest = decode_cond ? DE_PC : DE_NONE;
     end else if (opc == 'hc9) begin                 // RET
         decode_load_mem16 = 1;
         decode_oper1 = DE_SP;
@@ -502,8 +529,20 @@ always @(*) begin
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
         decode_flags_override_reset = 4'b1000;
+    end else if (opc == 'h0f) begin                 // RRCA
+        decode_alu_op = ALU_RRC;
+        decode_oper1 = DE_REG_A;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+        decode_flags_override_reset = 4'b1000;
     end else if (opc == 'h17) begin                 // RLA
         decode_alu_op = ALU_RL;
+        decode_oper1 = DE_REG_A;
+        decode_dest = DE_REG_A;
+        decode_flags_mask = 4'b1111;
+        decode_flags_override_reset = 4'b1000;
+    end else if (opc == 'h1f) begin                 // RRA
+        decode_alu_op = ALU_RR;
         decode_oper1 = DE_REG_A;
         decode_dest = DE_REG_A;
         decode_flags_mask = 4'b1111;
@@ -623,13 +662,31 @@ always @(*) begin
         decode_oper1 = decode_operand_reg16(opc[5:4], 0);
         decode_oper2 = DE_CONST;
         decode_dest = decode_operand_reg16(opc[5:4], 0);
-    end else if ((opc & 'hcf) == 'h09) begin        // ADD HL, r
+    end else if ((opc & 'hcf) == 'h09) begin        // ADD HL, r16
         decode_alu_op = ALU_ADD;
         decode_16bit = 1;
         decode_oper1 = DE_REG_HL;
         decode_oper2 = decode_operand_reg16(opc[5:4], 0);
         decode_dest = DE_REG_HL;
         decode_flags_mask = 4'b0111;
+
+    end else if (opc == 'he8) begin                 // ADD SP, imm8
+        // Flags follow 8-bit behavior, *not* 16-bit
+        decode_alu_op = ALU_ADD;
+        decode_oper1 = DE_SP;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_SP;
+        decode_flags_mask = 4'b0111;
+        decode_flags_override_reset = 4'b1000;
+
+    end else if (opc == 'hf8) begin                 // ADD HL, SP + imm8
+        // Flags follow 8-bit behavior, *not* 16-bit
+        decode_alu_op = ALU_ADD;
+        decode_oper1 = DE_SP;
+        decode_oper2 = DE_IMM8;
+        decode_dest = DE_REG_HL;
+        decode_flags_mask = 4'b0111;
+        decode_flags_override_reset = 4'b1000;
 
     end else if (opc == 'hcb) begin                 // CB prefix
         decode_cb_prefix = 1;
