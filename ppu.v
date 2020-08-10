@@ -535,7 +535,6 @@ function [7:0] read(input [15:0] addr);
             REG_SCX:  read = bg_x;
             REG_LY:   read = cur_y;
             REG_LYC:  read = y_compare;
-            //REG_DMA: not readable
             REG_BGP:  read = bg_pal;
             REG_OBP0: read = obj_pal0;
             REG_OBP1: read = obj_pal1;
@@ -590,9 +589,6 @@ always @(posedge clk)
                 REG_SCX:  bg_x <= mem_data_write;
                 //REG_LY: reset handled above
                 REG_LYC:  y_compare <= mem_data_write;
-                `ifdef DEBUG
-                REG_DMA: begin $display("DMA not implemented"); $finish; end
-                `endif
                 REG_BGP:  bg_pal <= mem_data_write;
                 REG_OBP0: obj_pal0 <= mem_data_write;
                 REG_OBP1: obj_pal1 <= mem_data_write;
