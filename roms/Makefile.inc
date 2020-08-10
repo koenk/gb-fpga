@@ -5,14 +5,14 @@ RGBASM  = $(RGBDS)rgbasm
 RGBLINK = $(RGBDS)rgblink
 RGBFIX  = $(RGBDS)rgbfix
 
-BUILDDIR ?= build
+ROMBUILDDIR ?= build
 ROMDIR ?= .
 
-$(BUILDDIR)/%.o: $(ROMDIR)/%.asm | $(BUILDDIR)
+$(ROMBUILDDIR)/%.o: $(ROMDIR)/%.asm | $(ROMBUILDDIR)
 	$(LOG) [AS]
 	$(RGBASM) -o $@ $^
 
-$(BUILDDIR)/%.gb: $(BUILDDIR)/%.o
+$(ROMBUILDDIR)/%.gb: $(ROMBUILDDIR)/%.o
 	$(LOG) [LINK]
 	$(RGBLINK) -o $@ $^
 	$(RGBFIX) -v $@
