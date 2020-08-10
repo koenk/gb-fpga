@@ -35,6 +35,10 @@ void vcpu_reset(struct state *state) {
     S(N) = BIT(state->reg8.F, 6);
     S(H) = BIT(state->reg8.F, 5);
     S(C) = BIT(state->reg8.F, 4);
+
+    // Reset stage, otherwise we may add cycles coming out of halted state.
+    S(stage) = 0; // RESET
+    S(next_stage) = 2; // FETCH
 #undef S
     num_mem_accesses = 0;
 }
@@ -58,7 +62,8 @@ int vcpu_step(void) {
         if (Verilated::gotFinish())
             return -1;
 
-        cycles++;
+        if (!vcpu->clk)
+            cycles++;
         vcpu->clk = !vcpu->clk;
         vcpu->eval();
 

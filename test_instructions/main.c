@@ -86,25 +86,29 @@ static void op_state_reset(struct op_state *op_state) {
 
 static int run_state(struct state *state) {
     struct state vcpu_out_state, ecpu_out_state;
+    int vcpu_cycles, ecpu_cycles;
 
     vcpu_reset(state);
     ecpu_reset(state);
 
-    vcpu_step();
-    ecpu_step();
+    vcpu_cycles = vcpu_step();
+    ecpu_cycles = ecpu_step();
 
     vcpu_get_state(&vcpu_out_state);
     ecpu_get_state(&ecpu_out_state);
 
-    if (!states_eq(&vcpu_out_state, &ecpu_out_state)) {
+    if (!states_eq(&vcpu_out_state, &ecpu_out_state) ||
+            vcpu_cycles != ecpu_cycles) {
         printf("\n  === STATE MISMATCH ===\n");
         printf("\n - Instruction -\n");
         disassemble(instruction_mem);
         printf("\n - Input state -\n");
         dump_state(state);
         printf("\n - CPU output state -\n");
+        printf(" Cycles: %d\n", vcpu_cycles);
         dump_state(&vcpu_out_state);
         printf("\n - Emulated output state -\n");
+        printf(" Cycles: %d\n", ecpu_cycles);
         dump_state(&ecpu_out_state);
         return 1;
     }

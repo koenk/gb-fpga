@@ -65,7 +65,7 @@ static int cycles_per_instruction[] = {
      4,  4,  4,  4,  4,  4,  8,  4,  4,  4,  4,  4,  4,  4,  8,  4, /* 8 */
      4,  4,  4,  4,  4,  4,  8,  4,  4,  4,  4,  4,  4,  4,  8,  4, /* 9 */
      4,  4,  4,  4,  4,  4,  8,  4,  4,  4,  4,  4,  4,  4,  8,  4, /* a */
-     4,  4,  4,  4,  4,  4,  8,  4,  4,  4,  4,  4,  8,  4,  8,  4, /* b */
+     4,  4,  4,  4,  4,  4,  8,  4,  4,  4,  4,  4,  4,  4,  8,  4, /* b */
      8, 12, 12, 16, 12, 16,  8, 16,  8, 16, 12,  0, 12, 24,  8, 16, /* c */
      8, 12, 12,  4, 12, 16,  8, 16,  8, 16, 12,  4, 12,  4,  8, 16, /* d */
     12, 12,  8,  4,  4, 16,  8, 16, 16,  4, 16,  4,  4,  4,  8, 16, /* e */
@@ -317,6 +317,7 @@ static int cpu_do_cb_instruction(struct gb_state *s) {
 }
 
 static int cpu_do_instruction(struct gb_state *s) {
+    int extra_cycles = 0;
     u8 op = mmu_read(s, s->pc++);
     if (M(op, 0x00, 0xff)) { /* NOP */
     } else if (M(op, 0x01, 0xcf)) { /* LD reg16, u16 */
@@ -403,8 +404,10 @@ static int cpu_do_instruction(struct gb_state *s) {
         A = res;
     } else if (M(op, 0x20, 0xe7)) { /* JR cond, off8 */
         u8 flag = (op >> 3) & 3;
-        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1))
+        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1)) {
             s->pc += (s8)IMM8;
+            extra_cycles = 4;
+        }
         s->pc++;
     } else if (M(op, 0x22, 0xff)) { /* LDI (HL), A */
         mmu_write(s, HL, A);
@@ -534,21 +537,21 @@ static int cpu_do_instruction(struct gb_state *s) {
         HF = (A & 0xf) < (regval & 0xf);
         CF = A < regval;
     } else if (M(op, 0xc0, 0xe7)) { /* RET cond */
-        /* TODO cyclecount depends on taken or not */
-
         u8 flag = (op >> 3) & 3;
-        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1))
+        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1)) {
             s->pc = mmu_pop16(s);
-
+            extra_cycles = 12;
+        }
     } else if (M(op, 0xc1, 0xcf)) { /* POP reg16 */
         u16 *dst = REG16S(4);
         *dst = mmu_pop16(s);
         F = F & 0xf0;
     } else if (M(op, 0xc2, 0xe7)) { /* JP cond, imm16 */
         u8 flag = (op >> 3) & 3;
-        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1))
+        if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1)) {
             s->pc = IMM16;
-        else
+            extra_cycles = 4;
+        } else
             s->pc += 2;
     } else if (M(op, 0xc3, 0xff)) { /* JP imm16 */
         s->pc = IMM16;
@@ -559,6 +562,7 @@ static int cpu_do_instruction(struct gb_state *s) {
         if (((F & flagmasks[flag]) ? 1 : 0) == (flag & 1)) {
             mmu_push16(s, s->pc);
             s->pc = dst;
+            extra_cycles = 12;
         }
     } else if (M(op, 0xc5, 0xcf)) { /* PUSH reg16 */
         u16 *src = REG16S(4);
@@ -677,13 +681,13 @@ static int cpu_do_instruction(struct gb_state *s) {
         printf("Unknown opcode %02x", op);
         return -1;
     }
-    return 0;
+    return extra_cycles;
 }
 
 int ecpu_step(void) {
     struct gb_state *s = &emu_state;
     u8 op;
-    int cycles = 0;
+    int cycles = 0, extra_cycles;
 
     op = mmu_read(s, s->pc);
     cycles = cycles_per_instruction[op];
@@ -692,9 +696,11 @@ int ecpu_step(void) {
         cycles = cycles_per_instruction_cb[op];
     }
 
-    if (cpu_do_instruction(s))
+    extra_cycles = cpu_do_instruction(s);
+
+    if (extra_cycles < 0)
         return -1;
-    return cycles;
+    return cycles + extra_cycles;
 }
 
 void ecpu_init(void) {
