@@ -63,8 +63,15 @@ localparam RESET       = 0,
            STORE_MEM6  = 30,
            STORE_MEM7  = 31,
            STORE_MEM8  = 32,
-           WRITEBACK   = 33,
-           INTR        = 34;
+           STALL1      = 33,
+           STALL2      = 34,
+           STALL3      = 35,
+           STALL4      = 36,
+           STALL5      = 37,
+           STALL6      = 38,
+           STALL7      = 39,
+           STALL8      = 40,
+           WRITEBACK   = 41;
 
 /* Operations the ALU can perform. */
 localparam ALU_NOP  = 0,
@@ -150,6 +157,11 @@ reg [15:0] decode_store_addr_constval, decode_store_data_constval;
 reg decode_cb_prefix;
 reg decode_intm_disable, decode_intm_enable;
 reg [4:0] decode_intack;
+reg decode_branch_taken;
+reg decode_ret;
+reg decode_push;
+reg decode_arith16;
+reg decode_stall_more;
 
 reg [7:0] decode_cb_opcode;
 reg [4:0] decode_cb_alu_op;
@@ -180,6 +192,9 @@ reg [16:0] alu_out; // 16 bit + 1 bit for capturing carry
 wire alu_out_Z, alu_out_N, alu_out_H;
 reg alu_out_C;
 wire [7:0] alu_daa_add;
+
+// Add pad cycles to mimic cycle count of original hardware
+reg do_stall, do_stall8;
 
 reg [4:0] wb_dest;
 reg [15:0] wb_data;
@@ -249,15 +264,25 @@ always @(*)
             LOAD_MEM6:   next_stage = LOAD_MEM7;
             LOAD_MEM7:   next_stage = LOAD_MEM8;
             LOAD_MEM8:   next_stage = EXECUTE;
-            EXECUTE:     next_stage = store_mem ? STORE_MEM1 : WRITEBACK;
+            EXECUTE:     next_stage = store_mem ? STORE_MEM1 :
+                                      do_stall ? STALL1 : WRITEBACK;
             STORE_MEM1:  next_stage = STORE_MEM2;
             STORE_MEM2:  next_stage = STORE_MEM3;
             STORE_MEM3:  next_stage = STORE_MEM4;
-            STORE_MEM4:  next_stage = store_mem16 ? STORE_MEM5 : WRITEBACK;
+            STORE_MEM4:  next_stage = store_mem16 ? STORE_MEM5 :
+                                      do_stall ? STALL1 : WRITEBACK;
             STORE_MEM5:  next_stage = STORE_MEM6;
             STORE_MEM6:  next_stage = STORE_MEM7;
             STORE_MEM7:  next_stage = STORE_MEM8;
-            STORE_MEM8:  next_stage = WRITEBACK;
+            STORE_MEM8:  next_stage = do_stall ? STALL1 : WRITEBACK;
+            STALL1:      next_stage = STALL2;
+            STALL2:      next_stage = STALL3;
+            STALL3:      next_stage = STALL4;
+            STALL4:      next_stage = do_stall8 ? STALL5 : WRITEBACK;
+            STALL5:      next_stage = STALL6;
+            STALL6:      next_stage = STALL7;
+            STALL7:      next_stage = STALL8;
+            STALL8:      next_stage = WRITEBACK;
             WRITEBACK:   next_stage = has_pending_intr ? FETCH :
                                       halted ? HALTED : FETCH;
             // TODO add 4 cycles for jumps (except LD PC, HL)
@@ -342,6 +367,11 @@ always @(*) begin
     decode_intm_disable = 0;
     decode_intm_enable = 0;
     decode_intack = 0;
+    decode_branch_taken = 0;
+    decode_ret = 0;
+    decode_push = 0;
+    decode_arith16 = 0;
+    decode_stall_more = 0;
 
     decode_opcode = mem_data_read;
     opc = decode_opcode;
@@ -387,6 +417,7 @@ always @(*) begin
     end else if (opc == 'hf9) begin                 // LD SP, HL
         decode_oper1 = DE_REG_HL;
         decode_dest = DE_SP;
+        decode_arith16 = 1;
 
     end else if ((opc & 'hef) == 'h0a) begin        // LD A, (r16)
         decode_load_mem8 = 1;
@@ -452,6 +483,7 @@ always @(*) begin
         decode_store_addr_constval = sp - 2;
         decode_store_data_oper = decode_operand_reg16(opc[5:4], 1);
         decode_SP_op = SP_OP_DEC2;
+        decode_push = 1;
     end else if ((opc & 'hcf) == 'hc1) begin        // POP r16
         decode_load_mem16 = 1;
         decode_oper1 = DE_SP;
@@ -465,6 +497,7 @@ always @(*) begin
         decode_SP_op = SP_OP_DEC2;
         decode_oper1 = DE_IMM16;
         decode_dest = DE_PC;
+        decode_branch_taken = 1;
     end else if ((opc & 'he7) == 'hc4) begin        // CALL cc, imm16
         decode_cond = decode_operand_cond(opc[4:3]);
         decode_store_mem16 = decode_cond;
@@ -473,23 +506,28 @@ always @(*) begin
         decode_SP_op = decode_cond ? SP_OP_DEC2 : SP_OP_NONE;
         decode_oper1 = DE_IMM16;
         decode_dest = decode_cond ? DE_PC : DE_NONE;
+        decode_branch_taken = decode_cond;
     end else if (opc == 'hc9) begin                 // RET
         decode_load_mem16 = 1;
         decode_oper1 = DE_SP;
         decode_dest = DE_PC;
         decode_SP_op = SP_OP_INC2;
+        decode_ret = 1;
     end else if ((opc & 'he7) == 'hc0) begin        // RET cc
         decode_cond = decode_operand_cond(opc[4:3]);
         decode_load_mem16 = decode_cond;
         decode_oper1 = DE_SP;
         decode_dest = decode_cond ? DE_PC : DE_NONE;
         decode_SP_op = decode_cond ? SP_OP_INC2 : SP_OP_NONE;
+        decode_ret = 1;
+        decode_branch_taken = decode_cond;
     end else if (opc == 'hd9) begin                 // RETI
         decode_load_mem16 = 1;
         decode_oper1 = DE_SP;
         decode_dest = DE_PC;
         decode_SP_op = SP_OP_INC2;
         decode_intm_enable = 1;
+        decode_branch_taken = 1;
 
     end else if ((opc & 'hc7) == 'hc7) begin        // RST vec
         decode_store_mem16 = 1;
@@ -499,10 +537,12 @@ always @(*) begin
         decode_oper1 = DE_CONST;
         decode_oper1_constval = {10'h0, opc[5:3], 3'b000};
         decode_dest = DE_PC;
+        decode_branch_taken = 1;
 
     end else if (opc == 'hc3) begin                 // JP imm16
         decode_oper1 = DE_IMM16;
         decode_dest = DE_PC;
+        decode_branch_taken = 1;
     end else if (opc == 'he9) begin                 // JP HL
         decode_oper1 = DE_REG_HL;
         decode_dest = DE_PC;
@@ -511,17 +551,19 @@ always @(*) begin
         decode_oper1 = DE_IMM8;
         decode_oper2 = DE_PC;
         decode_dest = DE_PC;
+        decode_branch_taken = 1;
     end else if ((opc & 'he7) == 'hc2) begin        // JP cc, imm16
         decode_oper1 = DE_IMM16;
-        decode_dest = DE_PC;
         decode_cond = decode_operand_cond(opc[4:3]);
         decode_dest = decode_cond ? DE_PC : DE_NONE;
+        decode_branch_taken = decode_cond;
     end else if ((opc & 'he7) == 'h20) begin        // JR cc, off8
         decode_alu_op = ALU_ADD;
         decode_oper1 = DE_IMM8;
         decode_oper2 = DE_PC;
         decode_cond = decode_operand_cond(opc[4:3]);
         decode_dest = decode_cond ? DE_PC : DE_NONE;
+        decode_branch_taken = decode_cond;
 
     end else if (opc == 'h07) begin                 // RLCA
         decode_alu_op = ALU_RLC;
@@ -657,11 +699,13 @@ always @(*) begin
         decode_oper1 = decode_operand_reg16(opc[5:4], 0);
         decode_oper2 = DE_CONST;
         decode_dest = decode_operand_reg16(opc[5:4], 0);
+        decode_arith16 = 1;
     end else if ((opc & 'hcf) == 'h0b) begin        // DEC r16
         decode_alu_op = ALU_SUB;
         decode_oper1 = decode_operand_reg16(opc[5:4], 0);
         decode_oper2 = DE_CONST;
         decode_dest = decode_operand_reg16(opc[5:4], 0);
+        decode_arith16 = 1;
     end else if ((opc & 'hcf) == 'h09) begin        // ADD HL, r16
         decode_alu_op = ALU_ADD;
         decode_16bit = 1;
@@ -669,6 +713,7 @@ always @(*) begin
         decode_oper2 = decode_operand_reg16(opc[5:4], 0);
         decode_dest = DE_REG_HL;
         decode_flags_mask = 4'b0111;
+        decode_arith16 = 1;
 
     end else if (opc == 'he8) begin                 // ADD SP, imm8
         // Flags follow 8-bit behavior, *not* 16-bit
@@ -678,8 +723,10 @@ always @(*) begin
         decode_dest = DE_SP;
         decode_flags_mask = 4'b0111;
         decode_flags_override_reset = 4'b1000;
+        decode_arith16 = 1;
+        decode_stall_more = 1; // Why??
 
-    end else if (opc == 'hf8) begin                 // ADD HL, SP + imm8
+    end else if (opc == 'hf8) begin                 // LD HL, SP + imm8
         // Flags follow 8-bit behavior, *not* 16-bit
         decode_alu_op = ALU_ADD;
         decode_oper1 = DE_SP;
@@ -687,6 +734,7 @@ always @(*) begin
         decode_dest = DE_REG_HL;
         decode_flags_mask = 4'b0111;
         decode_flags_override_reset = 4'b1000;
+        decode_arith16 = 1;
 
     end else if (opc == 'hcb) begin                 // CB prefix
         decode_cb_prefix = 1;
@@ -928,6 +976,9 @@ always @(posedge clk) begin
             store_mem_addr <= operand_mux(decode_dest == DE_HLMEM ? DE_HLMEM : decode_store_addr_oper, decode_store_addr_constval);
             store_mem_data <= operand_mux(decode_store_data_oper, decode_store_data_constval);
             store_mem_execout <= decode_dest == DE_HLMEM;
+
+            do_stall <= decode_branch_taken || decode_ret || decode_arith16 || decode_push;
+            do_stall8 <= (decode_ret && decode_branch_taken) || decode_stall_more;
 
             wb_dest <= decode_dest;
             wb_pc <= pc + {14'b0, decode_instr_length};
