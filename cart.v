@@ -20,35 +20,17 @@ module cart (
 
 assign data_active = !write_enable && (
     (addr < 'h8000) ||
-    (addr >= 'ha000 && addr < 'hbfff));
+    (addr >= 'ha000 && addr < 'hc000));
 
-`ifdef SYNTHESIS
+parameter rom_size = 'h3000;
 
-    // TODO
+reg [7:0] rom [rom_size-1:0];
 
-    always @(negedge clk)
-        data_r <= 'haa;
+initial begin
+    $readmemh("roms/build/obj.hex", rom);
+end
 
-`else
-
-    /*
-     * Create a virtual cartridge with a given ROM file.
-     */
-
-    parameter bank_size = 'h4000;
-
-    reg [7:0] bank0 [bank_size-1:0];
-
-    initial begin
-        $readmemh(`"`ROMFILE`", bank0);
-    end
-
-    always @(negedge clk)
-        if (addr < bank_size)
-            data_r <= bank0[addr[13:0]];
-        else
-            data_r <= 'haa;
-
-`endif
+always @(posedge clk)
+    data_r <= rom[addr];
 
 endmodule
