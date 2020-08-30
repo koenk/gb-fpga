@@ -42,7 +42,7 @@ SYN_FLAGS = -DSYNTHESIS
 PNR_FLAGS = --$(DEV) --freq $(FREQ)
 VERILATOR_FLAGS = --Mdir $(SIMDIR) -Wall -O2 --cc --top-module $(SIMTOP)
 
-ROMHEX = $(pathsubst %.gb,%.hex,$(ROM))
+ROMHEX = $(patsubst %.gb,%.hex,$(ROM))
 
 VERILATOR_DIR = /usr/share/verilator/include
 CFLAGS := -Wall -Wextra -O2 -ggdb
