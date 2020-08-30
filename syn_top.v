@@ -1,6 +1,8 @@
 `include "pll.v"
 `include "main.v"
 `include "tft.v"
+`include "cart.v"
+`include "spram.v"
 
 module syn_top (
     input device_clk,
@@ -18,6 +20,20 @@ reg [3:0] reset_cnt;
 
 wire btn_a, btn_b, btn_start, btn_select;
 wire btn_up, btn_down, btn_left, btn_right;
+
+wire [15:0] extbus_addr;
+wire [7:0] extbus_data_w, extbus_data_r;
+wire extbus_do_write;
+
+wire [15:0] vram_addr;
+wire [7:0] vram_data_w, vram_data_r;
+wire vram_do_write;
+wire vram_data_active;
+
+wire [7:0] cart_data_r;
+wire cart_data_active;
+wire [7:0] wram_data_r;
+wire wram_data_active;
 
 wire lcd_hblank, lcd_vblank;
 wire lcd_write;
@@ -66,6 +82,16 @@ main main(
     btn_left,
     btn_right,
 
+    extbus_addr,
+    extbus_data_w,
+    extbus_data_r,
+    extbus_do_write,
+
+    vram_addr,
+    vram_data_w,
+    vram_data_r,
+    vram_do_write,
+
     lcd_hblank,
     lcd_vblank,
     lcd_write,
@@ -84,6 +110,24 @@ main main(
     dbg_last_opcode,
     dbg_stage
 );
+
+localparam VRAM_BASE = 'h8000, VRAM_SIZE = 'h2000;
+localparam WRAM_BASE = 'hC000, WRAM_SIZE = 'h2000;
+
+cart cart (clk_4mhz, extbus_addr, cart_data_r, extbus_data_w, extbus_do_write, cart_data_active);
+
+spram #(.base(WRAM_BASE), .size(WRAM_SIZE), .addrbits(13))
+    wram (clk_4mhz, extbus_addr, wram_data_r, extbus_data_w, extbus_do_write, wram_data_active);
+spram #(.base(VRAM_BASE), .size(VRAM_SIZE), .addrbits(13))
+    vram (clk_4mhz, vram_addr, vram_data_r, vram_data_w, vram_do_write, vram_data_active);
+
+assign extbus_data_r = cart_data_active ? cart_data_r :
+                       wram_data_active ? wram_data_r :
+                                          'haa;
+/*
+assign extbus_data_r = 'haa;
+assign vram_data_r = 'haa;
+*/
 
 /* Hold reset line high on power-on for few clocks. */
 initial reset_cnt = 0;
