@@ -900,7 +900,11 @@ always @(posedge clk) begin
         `endif
         stage <= RESET;
         halted <= 0;
-        pc <= 16'h0000;
+        `ifdef SKIP_BOOTROM
+            pc <= 16'h00fc;
+        `else
+            pc <= 16'h0000;
+        `endif
         sp <= 16'h0000;
         reg_A <= 8'h00;
         reg_B <= 8'h00;

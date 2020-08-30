@@ -76,6 +76,11 @@ ifdef DEBUG_DMA
 	VERILATOR_FLAGS += -DDEBUG_DMA
 endif
 
+ifndef DO_BOOTROM
+	VERILATOR_FLAGS += -DSKIP_BOOTROM
+endif
+
+
 # Verbosity control
 ifndef V
 	LOG=@printf "\e[1;32m%s\e[0m $@\n"
