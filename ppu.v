@@ -131,28 +131,37 @@ reg objfetch_done;
 reg [3:0] objfetch_cacheidx;
 reg [7:0] objfetch_data1, objfetch_data2;
 reg [3:0] objfetch_next_possible_cacheidx;
-reg [15:0] objfetch_addr;
-reg [1:0] objfetch_stage;
-reg [7:0] objfetch_tile, objfetch_y;
+reg [15:0] objfetch_vram_addr;
+reg [2:0] objfetch_stage;
+reg [7:0] objfetch_y;
+/* verilator lint_off UNUSED */
+reg [7:0] objfetch_tile, objfetch_attr;
+/* verilator lint_on UNUSED */
+reg [5:0] objfetch_oamidx;
 wire [2:0] objfetch_y_off;
 wire [15:0] objfetch_tileaddr;
 
-reg [5:0] oamsearch_cur;
-wire [7:0] oamsearch_cur_x, oamsearch_cur_y, oamsearch_cur_tile, oamsearch_cur_attr;
+wire oamsearch_active;
+wire oamsearch_start;
+reg [5:0] oamsearch_cur_idx;
+wire [6:0] oamsearch_oam_addr;
+reg oamsearch_fetching;
 
 reg [3:0] oam_cache_idx;
+wire [3:0] oam_cache_compare_idx;
 reg [7:0] oam_cache_x [OAM_CACHESIZE-1:0];
 reg [7:0] oam_cache_y [OAM_CACHESIZE-1:0];
-reg [7:0] oam_cache_tile [OAM_CACHESIZE-1:0];
-/* verilator lint_off UNUSED */
-reg [7:0] oam_cache_attr [OAM_CACHESIZE-1:0];
-/* verilator lint_on UNUSED */
+reg [5:0] oam_cache_oamidx [OAM_CACHESIZE-1:0];
 
-reg [7:0] oam [OAM_SIZE-1:0];
+reg [15:0] oam [(OAM_SIZE>>1)-1:0];
+wire [6:0] oam_addr;
+reg [15:0] oam_data_r;
 
+wire [7:0] oam_x, oam_y, oam_tile, oam_attr; // Aliasses to oam_data_r
 
-assign vram_addr = objfetch_active ? objfetch_addr :
-                   pixfetch_active ? pixfetch_addr : mem_addr;
+assign vram_addr = objfetch_active ? objfetch_vram_addr :
+                   pixfetch_active ? pixfetch_addr :
+                                     mem_addr;
 assign vram_data_w = objfetch_active || pixfetch_active ? 0 : mem_data_write;
 assign vram_do_write = objfetch_active || pixfetch_active ? 0 : mem_do_write;
 
@@ -184,40 +193,50 @@ end
 /* OAM search */
 always @(posedge clk) begin
     if (reset) begin
-        oamsearch_cur <= 0;
+        oamsearch_cur_idx <= 0;
         oam_cache_idx <= 0;
-    end else if (!display_enabled) begin
-    end else if (cur_y >= PIX_Y) begin
-    end else if (cur_x_clk == 0) begin : aaa
+
+    end else if (oamsearch_start) begin : aaa
         integer i;
         `ifdef DEBUG_PPU
             $display("[PPU] Starting OAM search for line %d", cur_y);
         `endif
 
-        oamsearch_cur <= 0;
+        oamsearch_fetching <= 1;
+        oamsearch_cur_idx <= 0;
         oam_cache_idx <= 0;
         for (i = 0; i < OAM_CACHESIZE; i = i + 1) begin
             oam_cache_x[i] <= 0;
         end
-    end else if (oam_cache_idx == OAM_CACHESIZE) begin
-    end else if (oamsearch_cur < OAM_ENTRIES) begin
-        if (oam[oamsearch_cur_x] > 0 && oam[oamsearch_cur_y] <= cur_y + 16 && cur_y + 16 < oam[oamsearch_cur_y] + 8) begin
-            `ifdef DEBUG_PPU
-                $display("[PPU] OAM %d @ %d %d tile=%02x => cache[%d]", oamsearch_cur, oam[oamsearch_cur_x], oam[oamsearch_cur_y], oam[oamsearch_cur_tile], oam_cache_idx);
-            `endif
-            oam_cache_x[oam_cache_idx] <= oam[oamsearch_cur_x];
-            oam_cache_y[oam_cache_idx] <= oam[oamsearch_cur_y];
-            oam_cache_tile[oam_cache_idx] <= oam[oamsearch_cur_tile];
-            oam_cache_attr[oam_cache_idx] <= oam[oamsearch_cur_attr];
-            oam_cache_idx <= oam_cache_idx + 1;
+
+    end else if (oamsearch_active) begin
+        if (oamsearch_fetching) begin
+            oamsearch_fetching <= 0;
+        end else begin
+            if (oam_y <= cur_y + 16 && cur_y + 16 < oam_y + 8 &&
+                    oam_x > 0) begin
+                oam_cache_y[oam_cache_idx] <= oam_y;
+                oam_cache_x[oam_cache_idx] <= oam_x;
+                oam_cache_oamidx[oam_cache_idx] <= oamsearch_cur_idx;
+                oam_cache_idx <= oam_cache_idx + 1;
+            end
+            oamsearch_fetching <= 1;
+            oamsearch_cur_idx <= oamsearch_cur_idx + 1;
         end
-        oamsearch_cur <= oamsearch_cur + 1;
     end
 end
-assign oamsearch_cur_y    = {oamsearch_cur, 2'b00};
-assign oamsearch_cur_x    = {oamsearch_cur, 2'b01};
-assign oamsearch_cur_tile = {oamsearch_cur, 2'b10};
-assign oamsearch_cur_attr = {oamsearch_cur, 2'b11};
+assign oamsearch_active = display_enabled &&
+                          cur_y < PIX_Y &&
+                          oam_cache_idx < OAM_CACHESIZE &&
+                          oamsearch_cur_idx < OAM_ENTRIES;
+assign oamsearch_start = display_enabled &&
+                         cur_y < PIX_Y &&
+                         cur_x_clk == 0;
+
+assign oam_x = oam_data_r[15:8];
+assign oam_y = oam_data_r[7:0];
+assign oam_attr = oam_data_r[15:8];
+assign oam_tile = oam_data_r[7:0];
 
 
 /* Pixel pipeline fetcher stages. */
@@ -317,13 +336,15 @@ end
 
 
 /* Object fetch (retrieves tile data for objects when needed). */
-localparam OF_WAIT_TILE1 = 0,
-           OF_READ_TILE1 = 1,
-           OF_WAIT_TILE2 = 2,
-           OF_READ_TILE2 = 3;
+localparam OF_WAIT_OAM       = 0,
+           OF_READ_OAM       = 1,
+           OF_WAIT_TILEDATA1 = 2,
+           OF_READ_TILEDATA1 = 3,
+           OF_WAIT_TILEDATA2 = 4,
+           OF_READ_TILEDATA2 = 5;
 assign objfetch_y_off = trunc_8to3(cur_y + 16 - objfetch_y);
 assign objfetch_tileaddr = obj_tiledata_addr
-                                + {4'b0, objfetch_tile, objfetch_y_off, 1'b0};
+                                + {4'b0, oam_tile, objfetch_y_off, 1'b0};
 always @(posedge clk) begin
     objfetch_done <= 0;
 
@@ -336,21 +357,28 @@ always @(posedge clk) begin
         objfetch_next_possible_cacheidx <= 0;
     end else if (objfetch_start) begin
         `ifdef DEBUG_PPU
-            $display("[PPU] OBJ Fetch %d tile=%02x addr %04x", objfetch_cacheidx, objfetch_tile, objfetch_tileaddr);
+            $display("[PPU] OBJ Fetch cacheidx=%d from OAM idx %02x", objfetch_cacheidx, objfetch_oamidx);
         `endif
         objfetch_active <= 1;
-        objfetch_addr <= objfetch_tileaddr;
-        objfetch_stage <= OF_WAIT_TILE1;
+        objfetch_stage <= OF_WAIT_OAM;
     end else if (objfetch_active) begin
         case (objfetch_stage)
-            OF_READ_TILE1: begin
+            OF_READ_OAM: begin
                 `ifdef DEBUG_PPU
-                    $display("[PPU] Got obj tile 1 %02x, fetching tile 2 from %04x", vram_data_r, objfetch_tileaddr + 1);
+                    $display("[PPU] OBJ Fetch %02x %02x read %02x tile=%02x attr=%02x", cur_x_px, cur_y, objfetch_cacheidx, oam_tile, oam_attr);
                 `endif
-                objfetch_addr <= objfetch_tileaddr + 1;
+                objfetch_tile <= oam_tile;
+                objfetch_attr <= oam_attr;
+                objfetch_vram_addr <= objfetch_tileaddr;
+            end
+            OF_READ_TILEDATA1: begin
+                `ifdef DEBUG_PPU
+                    $display("[PPU] Got obj tile 1 %02x, fetching tile 2 from %04x", vram_data_r, objfetch_vram_addr + 1);
+                `endif
+                objfetch_vram_addr <= objfetch_vram_addr + 1;
                 objfetch_data1 <= vram_data_r;
             end
-            OF_READ_TILE2: begin
+            OF_READ_TILEDATA2: begin
                 `ifdef DEBUG_PPU
                     $display("[PPU] Got obj tile 2 %02x", vram_data_r);
                 `endif
@@ -389,6 +417,7 @@ function [3:0] oam_cache_compare();
     else
         oam_cache_compare = 'hf;
 endfunction
+assign oam_cache_compare_idx = oam_cache_compare();
 
 /* Push pixels to screen from fifo. */
 always @(posedge clk) begin
@@ -446,12 +475,17 @@ always @(posedge clk) begin
         // TODO splice
         pixfifo1[15:8] <= objfetch_data1;
         pixfifo2[15:8] <= objfetch_data2;
-    end else if (oam_cache_compare() != 'hf) begin
+    end else if (oam_cache_compare_idx != 'hf) begin
         // TODO multiple obj?
-        objfetch_cacheidx <= oam_cache_compare();
-        objfetch_y <= oam_cache_y[oam_cache_compare()];
-        objfetch_tile <= oam_cache_tile[oam_cache_compare()];
-        // TODO attr
+        `ifdef DEBUG_PPU_FIFO
+            $display("[PPU] Hit for x=%02x t=%02x. Obj idx=%d  x=%02x  y=%02x",
+                cur_x_px, cur_y, oam_cache_oamidx[oam_cache_compare_idx],
+                oam_cache_x[oam_cache_compare_idx],
+                oam_cache_y[oam_cache_compare_idx]);
+        `endif
+        objfetch_cacheidx <= oam_cache_compare_idx;
+        objfetch_oamidx <= oam_cache_oamidx[oam_cache_compare_idx];
+        objfetch_y <= oam_cache_y[oam_cache_compare_idx];
         objfetch_start <= 1;
     end else begin
         `ifdef DEBUG_PPU_FIFO
@@ -514,12 +548,20 @@ assign mem_data_active = !mem_do_write && (
     (mem_addr >= IO_START && mem_addr <= IO_END));
 
 
-/* Handle reads from VRAM/OAM/PPU I/O ports */
+/* OAM accesses */
+always @(posedge clk)
+    oam_data_r <= oam[oam_addr];
+assign oam_addr = oamsearch_active ? oamsearch_oam_addr :
+                  objfetch_active  ? {objfetch_oamidx, 1'b1} :
+                                     trunc_16to7((mem_addr - OAM_BASE)>>1);
+assign oamsearch_oam_addr = {oamsearch_cur_idx, 1'b0};
+
+/* Handle reads from PPU memory regions: VRAM/OAM/PPU I/O ports */
 function [7:0] read(input [15:0] addr);
     if (addr >= VRAM_BASE && addr < VRAM_BASE + VRAM_SIZE)
         read = pixfetch_active ? 'hff : vram_data_r;
     else if (addr >= OAM_BASE && addr < OAM_BASE + OAM_SIZE)
-        read = oam[addr - OAM_BASE];
+        read = (addr[0]) ? oam_data_r[15:8] : oam_data_r[7:0];
     else if (addr >= IO_START && addr <= IO_END)
         case (addr)
             REG_LCDC: read = {display_enabled, win_tilemap_select, win_enabled,
@@ -569,7 +611,10 @@ always @(posedge clk)
         obj_pal1 <= 0;
     end else if (mem_do_write) begin
         if (mem_addr >= OAM_BASE && mem_addr < OAM_BASE + OAM_SIZE)
-            oam[mem_addr - OAM_BASE] <= mem_data_write;
+            if (mem_addr[0])
+                oam[(mem_addr - OAM_BASE) >> 1][15:8] <= mem_data_write;
+            else
+                oam[(mem_addr - OAM_BASE) >> 1][7:0] <= mem_data_write;
         else if (mem_addr >= IO_START && mem_addr <= IO_END) begin
             `ifdef DEBUG_PPU
                 $display("[PPU] IO Write %04x, val=%02x", mem_addr, mem_data_write);
