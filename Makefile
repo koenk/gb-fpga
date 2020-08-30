@@ -16,8 +16,8 @@
 BITTOP = syn_top
 SIMTOP = main
 
-SOURCES = main.v cpu.v bootrom.v lram.v ram.v cart.v ppu.v
-BIT_SOURCES := $(BITTOP).v tft.v pll.v $(SOURCES)
+SOURCES = main.v cpu.v bootrom.v lram.v cart.v ppu.v
+BIT_SOURCES := $(BITTOP).v tft.v pll.v spram.v $(SOURCES)
 SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex
