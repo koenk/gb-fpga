@@ -10,10 +10,12 @@ ROMDIR ?= .
 
 $(ROMBUILDDIR)/%.o: $(ROMDIR)/%.asm | $(ROMBUILDDIR)
 	$(LOG) [AS]
-	$(RGBASM) -o $@ $^
+	$(RGBASM) -i $(ROMDIR)/ -o $@ $^
 
 $(ROMBUILDDIR)/%.gb: $(ROMBUILDDIR)/%.o
 	$(LOG) [LINK]
 	$(RGBLINK) -o $@ $^
 	$(RGBFIX) -v $@
 
+$(ROMBUILDDIR):
+	mkdir -p $@

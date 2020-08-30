@@ -21,8 +21,5 @@ all: $(ROM_FILES)
 
 include Makefile.inc
 
-$(BUILDDIR):
-	mkdir -p $(BUILDDIR)
-
 clean:
 	@rm -rf $(BUILDDIR)
