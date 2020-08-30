@@ -21,7 +21,7 @@ BIT_SOURCES := $(BITTOP).v tft.v pll.v $(SOURCES)
 SIM_SOURCES = sim_main.cpp gui.c
 
 BOOTROM = dmg_boot.hex
-ROM = roms/build/bg.gb
+ROM = roms/build/obj.gb
 
 DEV = up5k
 PINS = icebreaker.pcf

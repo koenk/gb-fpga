@@ -1,4 +1,4 @@
-ROMS = halt test_mem bg
+ROMS = halt test_mem bg obj
 
 BUILDDIR = build
 
