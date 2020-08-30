@@ -12,13 +12,15 @@ module lram (
 );
 
 parameter base = 'hFF80;
-parameter size = 126;
+parameter size = 'h7F;
 parameter addrbits = 7;
 
 /* verilator lint_off UNUSED */
 wire [15:0] rel_addr;
 /* verilator lint_on UNUSED */
 wire [addrbits-1:0] addr;
+
+wire enable;
 
 reg [7:0] mem [size-1:0];
 
@@ -30,20 +32,20 @@ initial begin
 end
 `endif
 
-assign data_active = !write_enable &&
-    abs_addr >= base && abs_addr < base + size;
+assign enable = abs_addr >= base && abs_addr < base + size;
 
 assign rel_addr = abs_addr - base;
 assign addr = rel_addr[addrbits-1:0];
 
+assign data_active = enable && !write_enable;
+
 always @(posedge clk) begin
-    if (abs_addr >= base && abs_addr < base + size)
-        if (write_enable)
-            mem[addr] <= data_w;
+    if (enable && write_enable)
+        mem[addr] <= data_w;
 end
 
 always @(negedge clk)
-    if (abs_addr >= base && abs_addr < base + size)
+    if (enable)
         data_r <= mem[addr];
 
 endmodule
