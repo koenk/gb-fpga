@@ -923,6 +923,7 @@ always @(posedge clk) begin
             `ifdef DEBUG_CPU
                 $display("[CPU] Fetch %04x", pc);
             `endif
+            halted <= 0;
             // For simulations (in particular, testcases), (re)start the fetch
             // in case we start execution here (without reset cycles).
             mem_addr <= pc;

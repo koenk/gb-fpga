@@ -83,7 +83,7 @@ main::
     ei
 
 mainloop:
-    ;halt ; TODO
+    halt ; wait for vblank
     jr mainloop
 
 ;

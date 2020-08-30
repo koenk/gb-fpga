@@ -533,7 +533,7 @@ always @(posedge clk) begin
     intreq_stat <= 0;
 
     if (!reset) begin
-        if (next_y != cur_y && next_y == PIX_Y)
+        if (display_enabled && next_y != cur_y && next_y == PIX_Y)
             intreq_vblank <= 1;
         // TODO check STAT conditions
     end

@@ -199,12 +199,13 @@ Cartridge *load_rom(char *filename)
 
 void dump_state(Vmain *top)
 {
-    printf(" PC   SP   AF   BC   DE   HL  ZNHC\n"
-            "%04x %04x %04x %04x %04x %04x %d%d%d%d\n\n",
+    printf(" PC   SP   AF   BC   DE   HL  ZNHC  hlt\n"
+            "%04x %04x %04x %04x %04x %04x %d%d%d%d   %d\n\n",
             top->dbg_pc, top->dbg_sp, top->dbg_AF, top->dbg_BC,
             top->dbg_DE, top->dbg_HL,
             BIT(top->dbg_AF, 7), BIT(top->dbg_AF, 6),
-            BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4));
+            BIT(top->dbg_AF, 5), BIT(top->dbg_AF, 4),
+            top->dbg_halted);
 }
 
 int main(int argc, char **argv)
@@ -281,10 +282,12 @@ int main(int argc, char **argv)
         if (top->clk && top->lcd_write)
             pixbuf[top->lcd_x + top->lcd_y * RES_X] = top->lcd_col;
 
+        /*
         if (top->dbg_instruction_retired && top->dbg_halted) {
             printf("CPU halted, exiting\n");
             break;
         }
+        */
     }
 
     dump_state(top);
