@@ -1,8 +1,6 @@
 `include "cpu.v"
-`include "ram.v"
 `include "lram.v"
 `include "bootrom.v"
-`include "cart.v"
 `include "ppu.v"
 
 module main (
@@ -17,6 +15,16 @@ module main (
     input joy_btn_down,
     input joy_btn_left,
     input joy_btn_right,
+
+    output [15:0] extbus_addr,
+    output [7:0] extbus_data_w,
+    input [7:0] extbus_data_r,
+    output extbus_do_write,
+
+    output [15:0] vram_addr,
+    output [7:0] vram_data_w,
+    input [7:0] vram_data_r,
+    output vram_do_write,
 
     output lcd_hblank,
     output lcd_vblank,
@@ -38,7 +46,7 @@ module main (
 );
 
 wire [15:0] bus_addr;
-wire [7:0] bus_data_r;
+reg [7:0] bus_data_r;
 wire [7:0] bus_data_w;
 wire bus_do_write;
 
@@ -48,16 +56,13 @@ wire [7:0] cpu_data_r;
 wire [7:0] cpu_data_w;
 
 wire [7:0] bootrom_data_r;
-wire [7:0] cart_data_r;
 wire [7:0] ppu_data_r;
-wire [7:0] wram_data_r;
 wire [7:0] hram_data_r;
 
 wire bootrom_data_active;
-wire cart_data_active;
-wire wram_data_active;
 wire hram_data_active;
 wire ppu_data_active;
+wire extbus_data_active;
 
 reg bootrom_enabled;
 
@@ -103,13 +108,9 @@ localparam OAMDMA_READ0  = 0,
  * FFFF      Interrupt enable
  */
 localparam                  BOOTROM_SIZE = 'h100;
-localparam WRAM_BASE = 'hC000, WRAM_SIZE = 'h2000;
 localparam HRAM_BASE = 'hFF80, HRAM_SIZE = 'h7F;
 
 bootrom bootrom (clk, bootrom_enabled, bus_addr, bootrom_data_r, bootrom_data_active);
-cart cart (clk, bus_addr, cart_data_r, bus_data_w, bus_do_write, cart_data_active);
-ram #(.base(WRAM_BASE), .size(WRAM_SIZE), .addrbits(13))
-    wram (clk, bus_addr, wram_data_r, bus_data_w, bus_do_write, wram_data_active);
 
 /* HRAM always connected to CPU, not multiplexed via bus. */
 lram #(.base(HRAM_BASE), .size(HRAM_SIZE), .addrbits(7))
@@ -124,6 +125,11 @@ ppu ppu(
     ppu_data_r,
     bus_do_write,
     ppu_data_active,
+
+    vram_addr,
+    vram_data_w,
+    vram_data_r,
+    vram_do_write,
 
     intreq_lcd_vblank,
     intreq_lcd_stat,
@@ -178,11 +184,17 @@ assign bus_data_w = oamdma_active ? oamdma_data : cpu_data_w;
 assign bus_do_write = oamdma_active ? oamdma_do_write : cpu_do_write;
 assign cpu_data_r = oamdma_active ? hram_data_r : bus_data_r;
 
+/* External bus going to WRAM and cartridge. */
+assign extbus_addr = bus_addr;
+assign extbus_data_w = bus_data_w;
+assign extbus_do_write = bus_do_write;
+assign extbus_data_active = bus_addr < 16'h8000 ||
+                            (bus_addr >= 16'hA000 && bus_addr < 16'hFE00);
+
 /* Mux for reading memory. */
 always @(*) begin
     if (bootrom_data_active) bus_data_r = bootrom_data_r;
-    else if (cart_data_active) bus_data_r = cart_data_r;
-    else if (wram_data_active) bus_data_r = wram_data_r;
+    else if (extbus_data_active) bus_data_r = extbus_data_r;
     else if (hram_data_active) bus_data_r = hram_data_r;
     else if (ppu_data_active) bus_data_r = ppu_data_r;
     else if (bus_addr == 16'hFF00) // Joypad (P1)

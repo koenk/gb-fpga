@@ -10,6 +10,11 @@ module ppu (
     input mem_do_write,
     output mem_data_active,
 
+    output [15:0] vram_addr,
+    output [7:0] vram_data_w,
+    input [7:0] vram_data_r,
+    output vram_do_write,
+
     output reg intreq_vblank,
     output reg intreq_stat,
 
@@ -51,13 +56,6 @@ localparam MODE_HBLANK = 'b00,
 
 localparam OAM_ENTRIES = 40;
 localparam OAM_CACHESIZE = 10;
-
-wire [15:0] vram_addr;
-wire [7:0] vram_data_w, vram_data_r;
-wire vram_do_write;
-/* verilator lint_off UNUSED */
-wire vram_data_active;
-/* verilator lint_on UNUSED */
 
 reg [8:0] cur_x_clk;            // 0..455 (OAM -> transfer -> hblank)
 reg [7:0] cur_x_px;             // 0..159
@@ -152,8 +150,6 @@ reg [7:0] oam_cache_attr [OAM_CACHESIZE-1:0];
 
 reg [7:0] oam [OAM_SIZE-1:0];
 
-ram #(.base(VRAM_BASE), .size(VRAM_SIZE), .addrbits(13))
-    vram (clk, vram_addr, vram_data_r, vram_data_w, vram_do_write, vram_data_active);
 
 assign vram_addr = objfetch_active ? objfetch_addr :
                    pixfetch_active ? pixfetch_addr : mem_addr;
